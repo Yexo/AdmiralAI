@@ -18,7 +18,7 @@ class StationManager
 		this._num_trucks = 0;
 		this._num_busses = 0;
 	}
-}
+};
 
 function StationManager::CanAddTrucks(num)
 {
@@ -36,7 +36,7 @@ function StationManager::GetNumBusses()
 
 function StationManager::CanAddBusses(num)
 {
-	return (12 - this._num_busses) > num;
+	return 12 - this._num_busses;
 }
 
 function StationManager::AddBusses(num)

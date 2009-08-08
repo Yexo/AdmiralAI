@@ -1,13 +1,21 @@
+/** @file busline.nut Implementation of BusLine. */
+
+/**
+ * Class that controls a line between two bus stops. It can buy and
+ *  sell vehicles to keep up with the demand.
+ * @todo merge large parts of this class with TruckLine.
+ */
 class BusLine
 {
-	_station_from = null;
-	_station_to = null;
-	_vehicle_list = null;
-	_depot_tile = null;
-	_cargo = null;
-	_engine_id = null;
-	_depot_tile = null;
+/* public: */
 
+	/**
+	 * Create a new bus line.
+	 * @param station_from A StationManager corresponding with the first bus stop.
+	 * @param station_to A StationManager corresponding with the second bus stop.
+	 * @param depot_tile A TileIndex on which a road depot has been built.
+	 * @param cargo The CargoID of the passengers we'll transport.
+	 */
 	constructor(station_from, station_to, depot_tile, cargo)
 	{
 		this._station_from = station_from;
@@ -18,32 +26,58 @@ class BusLine
 		this.BuildVehicles(6);
 	}
 
+	/**
+	 * Build some new vehicles for this route. First call _FindEngineID()
+	 *  so we'll build the best engine available.
+	 * @param num The number of vehicles to build.
+	 * @return False if and only if the building failed because we didn't
+	 *  have enough money.
+	 * @note BuildVehicles may return true even if the building failed.
+	 */
+	function BuildVehicles(num);
+
+	/**
+	 * Check if all vehicles on this route are still making a profit. If
+	 *  they all do and there are surplus passengers at of the stations,
+	 * build some new vehicles.
+	 * @return True if and only if we need more money to complete the function.
+	 */
 	function CheckVehicles();
-}
 
-function BusLine::_SortEngineList(engine_id)
-{
-	return AIEngine.GetCapacity(engine_id) * AIEngine.GetMaxSpeed(engine_id);
-}
+/* private: */
 
-function BusLine::_FindEngineID()
-{
-	local list = AIEngineList(AIVehicle.VEHICLE_ROAD);
-	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
-	list.KeepValue(1);
-	list.Valuate(this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-	this._engine_id = list.Begin();
-}
+	/**
+	 * A valuator used in _FindEngineID().
+	 * @param engine_id The EngineID to valuate.
+	 * @return A value for the given EngineID.
+	 */
+	static function _SortEngineList(engine_id);
+
+	/**
+	 * Find the best EngineID for this route. The EngineID is stored
+	 *  in this._engine_id.
+	 */
+	function _FindEngineID();
+
+	_station_from = null; ///< The StationManager managing the source station.
+	_station_to = null;   ///< The StationManager managing the station we are transporting cargo to.
+	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
+	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
+	_cargo = null;        ///< The CargoID of the passengers we'll transport.
+	_engine_id = null;    ///< The EngineID of the vehicles on this route.
+};
 
 function BusLine::BuildVehicles(num)
 {
 	local max_to_build = min(min(this._station_from.CanAddBusses(num), this._station_to.CanAddBusses(num)), num);
 	if (max_to_build == 0) return;
 	this._FindEngineID();
-	for (local i = 0; i < num; i++) {
+	for (local i = 0; i < max_to_build; i++) {
 		local v = AIVehicle.BuildVehicle(this._depot_tile, this._engine_id);
-		if (!AIVehicle.IsValidVehicle(v)) continue;
+		if (!AIVehicle.IsValidVehicle(v)) {
+			if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
+			continue;
+		}
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
@@ -55,8 +89,9 @@ function BusLine::BuildVehicles(num)
 		this._vehicle_list.AddItem(v, 0);
 		this._station_from.AddBusses(1);
 		this._station_to.AddBusses(1);
-		AIVehicle.StartStopVehicle(v)
+		AIVehicle.StartStopVehicle(v);
 	}
+	return true;
 }
 
 function BusLine::CheckVehicles()
@@ -97,3 +132,19 @@ function BusLine::CheckVehicles()
 		if (num_new > 0) this.BuildVehicles(num_new);
 	}
 }
+
+function BusLine::_SortEngineList(engine_id)
+{
+	return AIEngine.GetCapacity(engine_id) * AIEngine.GetMaxSpeed(engine_id);
+}
+
+function BusLine::_FindEngineID()
+{
+	local list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
+	list.KeepValue(1);
+	list.Valuate(this._SortEngineList);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	this._engine_id = list.Begin();
+}
+

@@ -1,6 +1,6 @@
 class RouteFinder
 {
-}
+};
 
 function RouteFinder::_Cost(old_path, new_tile, new_direction, callback_param)
 {

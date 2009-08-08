@@ -1,3 +1,15 @@
+/** @file townmanager.nut Implementation of TownManager. */
+
+/** @todo Be able to bulid multiple bus stops in one town.
+/*
+ * Some notes for that:
+ *  - bus stops should be a miminum of DistanceSquare 40 apart.
+ *  - For inner-town routes, the bus stops should be at least DistanceManhattan 12 apart.
+ */
+
+/**
+ * Class that manages building multiple bus stations in a town.
+ */
 class TownManager
 {
 	_town_id = null;
@@ -9,7 +21,7 @@ class TownManager
 		this._stations = [];
 		this._depot_tile = null;
 	}
-}
+};
 
 function TownManager::GetDepot(station_manager)
 {
@@ -31,7 +43,7 @@ function TownManager::GetStation(around_tile)
 	if (this._stations.len() > 0) return this._stations[0];
 	/* We need to build a new station. */
 	local list = AITileList();
-	list.AddRectangle(around_tile + AIMap.GetTileIndex(-3, -3), around_tile + AIMap.GetTileIndex(3, 3));
+	AdmiralAI.AddSquare(list, around_tile, 3);
 	list.Valuate(AIRoad.GetNeighbourRoadCount);
 	list.KeepAboveValue(0);
 	list.Valuate(AIRoad.IsRoadTile);
@@ -58,6 +70,6 @@ function TownManager::GetStation(around_tile)
 			}
 		}
 	}
-	throw("no staton build");
+	AILog.Error("no staton build");
 	return null;
 }

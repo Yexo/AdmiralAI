@@ -1,25 +1,55 @@
+/** @file utils.nut Implementation of Utils. */
+
+/**
+ * A general class containing some utility functions.
+ */
 class Utils
 {
-	/* Set's the company name to the first item from name_list that's possible.
-	 * If all company names in name_list are taken already, try appending them
-	 * with " #1", " #2", etc. */
-	function SetCompanyName(name_list);
+/* public: */
 
-	/* Randomly reorder all elements in a list.
-	 * @param list The list to reorder.
-	 * @return A list containing all elements from the input list, but reordered.
-	 * @note It returns the new list, the parameter is destroyed.*/
-	function RandomReorder(list);
+	/**
+	 * Set the company name to the first item from name_list that is possible.
+	 *  If all company names in name_list are taken already, try appending them
+	 *  with " #1", " #2", etc.
+	 * @param name_array An array with strings that are possible names.
+	 */
+	static function SetCompanyName(name_array);
 
-	/* Convert an array to a human-readable string. */
-	function ArrayToString(list);
+	/**
+	 * Randomly reorder all elements in an array.
+	 * @param array The array to reorder.
+	 * @return An array containing all elements from the input array, but reordered.
+	 * @note It returns a new array, the array give is destroyed.
+	 */
+	static function RandomReorder(array);
+
+	/**
+	 * Convert a squirrel table to a human-readable string.
+	 * @param table The table to convert.
+	 * @return A string containing all item => value pairs from the table.
+	 */
+	static function TableToString(table);
+
+	/**
+	 * Convert an array to a human-readable string.
+	 * @param array The array to convert.
+	 * @return A string containing all information from the array.
+	 */
+	static function ArrayToString(array);
+
+	/**
+	 * Convert an AIList to a human-readable string.
+	 * @param list The AIList to convert.
+	 * @return A string containing all item => value pairs from the list.
+	 */
+	static function AIListToString(list);
 };
 
-function Utils::SetCompanyName(name_list)
+function Utils::SetCompanyName(name_array)
 {
 	local counter = 0;
 	do {
-		foreach (name in name_list) {
+		foreach (name in name_array) {
 			if (counter > 0) {
 				name = name + " #" + counter;
 			}
@@ -27,38 +57,38 @@ function Utils::SetCompanyName(name_list)
 		}
 		counter++;
 	} while(true);
-};
+}
 
-function Utils::RandomReorder(list)
+function Utils::RandomReorder(array)
 {
 	local ret = [];
-	while (list.len() > 0) {
-		local index = AIBase.RandRange(list.len());
-		ret.push(list[index]);
-		list.remove(index);
+	while (array.len() > 0) {
+		local index = AIBase.RandRange(array.len());
+		ret.push(array[index]);
+		array.remove(index);
 	}
 	return ret;
 }
 
-function Utils::TableToString(list)
+function Utils::TableToString(table)
 {
-	if (typeof(list) != "table") throw("Utils::TableToString(): argument has to be an table.");
+	if (typeof(table) != "table") throw("Utils::TableToString(): argument has to be a table.");
 	local ret = "[";
-	foreach (a, b in list) {
+	foreach (a, b in table) {
 		ret += a + "=>" + b + ", ";
 	}
 	ret += "]";
 	return ret;
 }
 
-function Utils::ArrayToString(list)
+function Utils::ArrayToString(array)
 {
-	if (typeof(list) != "array") throw("Utils::ArrayToString(): argument has to be an array.");
+	if (typeof(array) != "array") throw("Utils::ArrayToString(): argument has to be an array.");
 	local ret = "[";
-	if (list.len() > 0) {
-		ret += list[0];
-		for (local i = 1; i < list.len(); i++) {
-			ret += ", " + list[i];
+	if (array.len() > 0) {
+		ret += array[0];
+		for (local i = 1; i < array.len(); i++) {
+			ret += ", " + array[i];
 		}
 	}
 	ret += "]";
