@@ -24,6 +24,11 @@
  */
 class AircraftManager
 {
+	_small_engine_id = null;    ///< The EngineID of newly build small planes.
+	_engine_id = null;          ///< The EngineID of newly build big planes.
+	_small_engine_group = null; ///< The GroupID of all small planes.
+	_big_engine_group = null;   ///< The GroupID of all big planes.
+
 /* public: */
 
 	/**
@@ -39,13 +44,6 @@ class AircraftManager
 	 *  to load a savegame saved by another AI.
 	 */
 	function AfterLoad();
-
-	/**
-	 * Checks if a station has a small airport.
-	 * @pre The station has an airport.
-	 * @return Whether or not the airport belonging to the station is small.
-	 */
-	function IsSmallAirport(station_id);
 
 	/**
 	 * Build a new air route. First all existing airports are scanned if some of
@@ -77,11 +75,6 @@ class AircraftManager
 	 * @return A value for the town.
 	 */
 	function _TownValuator(town_id);
-
-	_small_engine_id = null;    ///< The EngineID of newly build small planes.
-	_engine_id = null;          ///< The EngineID of newly build big planes.
-	_small_engine_group = null; ///< The GroupID of all small planes.
-	_big_engine_group = null;   ///< The GroupID of all big planes.
 };
 
 function AircraftManager::AfterLoad()
@@ -93,17 +86,22 @@ function AircraftManager::AfterLoad()
 	AIGroup.SetName(this._big_engine_group, "Big planes");
 
 	/* Add all existing airports to the relevant townmanager. */
-	/* TODO: sell heliports */
 	local station_list = AIStationList(AIStation.STATION_AIRPORT);
 	station_list.Valuate(AIStation.GetNearestTown);
 	foreach (station_id, town_id in station_list) {
-		::main_instance._town_managers[town_id]._airports.push(station_id);
+		if (Utils_Airport.IsHeliport(station_id)) {
+			/* We don't support heliports, so sell it. */
+			::main_instance.sell_stations.append([station_id, AIStation.STATION_AIRPORT]);
+		} else {
+			::main_instance._town_managers[town_id]._airports.push(station_id);
+		}
 	}
 
 	/* Move all planes in the relevant groups. Because helicopters are not
 	 * supported they are all sold. */
 	/* TODO: check if any big planes are going to small airports and
 	 * reroute or replace them? */
+	/* TODO: evaluate airport orders (they might be from another AI. */
 	local vehicle_list = AIVehicleList();
 	vehicle_list.Valuate(AIVehicle.GetVehicleType);
 	vehicle_list.KeepValue(AIVehicle.VEHICLE_AIR);
@@ -114,17 +112,9 @@ function AircraftManager::AfterLoad()
 		} else if (AIEngine.GetPlaneType(engine) == AIAirport.PT_SMALL_PLANE) {
 			AIGroup.MoveVehicle(this._small_engine_group, v);
 		} else {
-			::vehicles_to_sell.AddItem(v, 0);
+			::main_instance.sell_vehicles.AddItem(v, 0);
 		}
 	}
-}
-
-function AircraftManager::IsSmallAirport(station_id)
-{
-	assert(AIStation.HasStationType(station_id, AIStation.STATION_AIRPORT));
-
-	local type = AIAirport.GetAirportType(AIStation.GetLocation(station_id));
-	return type == AIAirport.AT_SMALL || type == AIAirport.AT_COMMUTER;
 }
 
 function AircraftManager::_TownValuator(town_id)
@@ -134,7 +124,7 @@ function AircraftManager::_TownValuator(town_id)
 
 function AircraftManager::BuildPlanes(station_a, station_b)
 {
-	local small_airport = this.IsSmallAirport(station_a) || this.IsSmallAirport(station_b);
+	local small_airport = Utils_Airport.IsSmallAirport(station_a) || Utils_Airport.IsSmallAirport(station_b);
 
 	/* Make sure we have enough money to buy two planes. */
 	/* TODO: there is no check if enough money is available, so possible

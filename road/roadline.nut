@@ -24,6 +24,17 @@
  */
 class RoadLine
 {
+	_station_from = null; ///< The StationManager managing the first station.
+	_station_to = null;   ///< The StationManager managing the second station.
+	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
+	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
+	_cargo = null;        ///< The CargoID of the cargo we'll transport.
+	_engine_id = null;    ///< The EngineID of the vehicles on this route.
+	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
+	_distance = null;     ///< The manhattan distance between the two stations.
+	_support_articulated = null;
+	_road_type = null;
+
 /* public: */
 
 	/**
@@ -63,23 +74,13 @@ class RoadLine
 	 *  in this._engine_id.
 	 */
 	function _FindEngineID();
-
-	_station_from = null; ///< The StationManager managing the first station.
-	_station_to = null;   ///< The StationManager managing the second station.
-	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
-	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
-	_cargo = null;        ///< The CargoID of the cargo we'll transport.
-	_engine_id = null;    ///< The EngineID of the vehicles on this route.
-	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
-	_distance = null;     ///< The manhattan distance between the two stations.
-	_support_articulated = null;
-	_road_type = null;
-
 };
 
 function RoadLine::RenameGroup()
 {
-	AIGroup.SetName(this._group_id, AICargo.GetCargoLabel(this._cargo) + ": " + AIStation.GetName(this._station_from.GetStationID()) + " - " + AIStation.GetName(this._station_to.GetStationID()));
+	local new_name = AICargo.GetCargoLabel(this._cargo) + ": " + AIStation.GetName(this._station_from.GetStationID()) + " - " + AIStation.GetName(this._station_to.GetStationID());
+	new_name = new_name.slice(0, min(new_name.len(), 30));
+	AIGroup.SetName(this._group_id, new_name);
 }
 
 function RoadLine::GetStationFrom()
@@ -96,7 +97,7 @@ function RoadLine::UpdateVehicleList()
 {
 	this._vehicle_list = AIList();
 	this._vehicle_list.AddList(AIVehicleList_Station(this._station_from.GetStationID()));
-	this._vehicle_list.RemoveList(::vehicles_to_sell);
+	this._vehicle_list.RemoveList(::main_instance.sell_vehicles);
 }
 
 function RoadLine::_SortEngineList(engine_id)

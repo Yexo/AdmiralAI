@@ -24,6 +24,12 @@
  */
 class TrainManager
 {
+	_unbuild_routes = null;              ///< A table with as index CargoID and as value an array of industries we haven't connected.
+	_ind_to_pickup_stations = null;      ///< A table mapping IndustryIDs to StationManagers. If an IndustryID is not in this list, we haven't build a pickup station there yet.
+	_ind_to_drop_stations = null;        ///< A table mapping IndustryIDs to StationManagers.
+	_routes = null;                      ///< An array containing all TruckLines build.
+	_platform_length = null;
+
 /* public: */
 
 	/**
@@ -91,16 +97,11 @@ class TrainManager
 	 */
 	function _GetSortedOffsets(tile, goal);
 
-	_unbuild_routes = null;              ///< A table with as index CargoID and as value an array of industries we haven't connected.
-	_ind_to_pickup_stations = null;      ///< A table mapping IndustryIDs to StationManagers. If an IndustryID is not in this list, we haven't build a pickup station there yet.
-	_ind_to_drop_stations = null;        ///< A table mapping IndustryIDs to StationManagers.
-	_routes = null;                      ///< An array containing all TruckLines build.
-	_platform_length = null;
 };
 
 function TrainManager::Save()
 {
-	local data = {pickup_stations = {}, drop_stations = {}, towns_used = [], routes = []};
+	local data = {pickup_stations = {}, drop_stations = {}, routes = []};
 
 	foreach (ind, managers in this._ind_to_pickup_stations) {
 		local station_ids = [];
@@ -120,7 +121,7 @@ function TrainManager::Save()
 
 	foreach (route in this._routes) {
 		if (!route._valid) continue;
-		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tile, route._cargo, route._platform_length]);
+		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tiles, route._cargo, route._platform_length, route._rail_type]);
 	}
 
 	return data;
@@ -132,7 +133,9 @@ function TrainManager::Load(data)
 		foreach (ind, manager_array in data.rawget("pickup_stations")) {
 			local new_man_array = [];
 			foreach (man_info in manager_array) {
-				new_man_array.push([StationManager(man_info[0], this), man_info[1]]);
+				local man = StationManager(man_info[0]);
+				man.SetCargoDrop(false);
+				new_man_array.push([man, man_info[1]]);
 			}
 			this._ind_to_pickup_stations.rawset(ind, new_man_array);
 		}
@@ -142,13 +145,14 @@ function TrainManager::Load(data)
 		foreach (ind, manager_array in data.rawget("drop_stations")) {
 			local new_man_array = [];
 			foreach (man_info in manager_array) {
-				new_man_array.push([StationManager(man_info[0], this), man_info[1]]);
+				local man = StationManager(man_info[0]);
+				man.SetCargoDrop(true);
+				new_man_array.push([man, man_info[1]]);
 			}
 			this._ind_to_drop_stations.rawset(ind, new_man_array);
 		}
 	}
 
-	/* TODO: fix and then enable loading of routes. */
 	if (false && data.rawin("routes")) {
 		foreach (route_array in data.rawget("routes")) {
 			local station_from = null;
@@ -166,16 +170,15 @@ function TrainManager::Load(data)
 				}
 			}
 			if (station_from == null || station_to == null) continue;
-			local route = TrainLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true, route_array[6], AIRail.GetCurrentRailType());
-			route.ScanPoints();
+			local route = TrainLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true, route_array[6], route_array[7]);
 			this._routes.push(route);
 			if (this._unbuild_routes.rawin(route_array[5])) {
-			foreach (ind, dummy in this._unbuild_routes[route_array[5]]) {
-				if (ind == route_array[0]) {
-					AdmiralAI.TransportCargo(route_array[5], ind);
-					break;
+				foreach (ind, dummy in this._unbuild_routes[route_array[5]]) {
+					if (ind == route_array[0]) {
+						AdmiralAI.TransportCargo(route_array[5], ind);
+						break;
+					}
 				}
-			}
 			} else {
 				AILog.Error("CargoID " + route_array[5] + " not in unbuild_routes");
 			}
@@ -278,10 +281,7 @@ function TrainManager::BuildNewRoute()
 	local rail_type_list = AIRailTypeList();
 	if (rail_type_list.Count() == 0) return false;
 
-	local cargo_list = AICargoList();
-	/* Try better-earning cargos first. */
-	cargo_list.Valuate(AICargo.GetCargoIncome, 80, 40);
-	cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	local cargo_list = ::main_instance.GetSortedCargoList();
 
 	foreach (cargo, dummy in cargo_list) {
 		if (!AICargo.IsFreight(cargo)) continue;
@@ -293,15 +293,25 @@ function TrainManager::BuildNewRoute()
 		if (rail_type_list.GetValue(rail_type_list.Begin()) == -1) return false;
 		AIRail.SetCurrentRailType(rail_type_list.Begin());
 
+		local val_list = AIList();
 		foreach (ind_from, dummy in this._unbuild_routes.rawget(cargo)) {
 			if (AIIndustry.IsBuiltOnWater(ind_from)) continue;
 			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) {
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
+			if (AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / AIIndustry.GetLastMonthProduction(ind_from, cargo) > 65) continue;
+			local prod = AIIndustry.GetLastMonthProduction(ind_from, cargo) - AIIndustry.GetLastMonthTransported(ind_from, cargo);
+			val_list.AddItem(ind_from, prod + AIBase.RandRange(prod));
+		}
+		val_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+
+		foreach (ind_from, dummy in val_list) {
+			Utils_General.GetMoney(200000);
+			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) < 180000) return false;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(70, 200);
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local station_from = this._GetStationNearIndustry(ind_from, true, cargo, ind_to);
 				if (station_from == null) break;
@@ -411,8 +421,8 @@ function TrainManager::TileValuator1(item, tile, max_rand, platform_length)
 function TrainManager::TileValuator2(item, tile, max_rand, platform_length)
 {
 	local val = AIMap.DistanceManhattan(item, tile) + AIBase.RandRange(max_rand);
-	if (tile < item && AITile.IsBuildableRectangle(item + AIMap.GetTileIndex(-2, -1), 2, 4)) val -= 20;
-	if (tile > item && AITile.IsBuildableRectangle(item + AIMap.GetTileIndex(platform_length + 2, -1), 2, 4)) val -= 20;
+	if (AIMap.GetTileX(tile) < AIMap.GetTileX(item) && AITile.IsBuildableRectangle(item + AIMap.GetTileIndex(-2, -1), 2, 4)) val -= 20;
+	if (AIMap.GetTileX(tile) > AIMap.GetTileX(item) && AITile.IsBuildableRectangle(item + AIMap.GetTileIndex(platform_length + 2, -1), 2, 4)) val -= 20;
 	return val;
 }
 
@@ -480,10 +490,10 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 
 	{
 		local test = AITestMode();
-		tile_list.Valuate(AIRail.BuildRailStation, AIRail.RAILTRACK_NW_SE, 2, platform_length + 2, false);
-		tile_list.KeepValue(1);
-		tile_list2.Valuate(AIRail.BuildRailStation, AIRail.RAILTRACK_NE_SW, 2, platform_length + 2, false);
-		tile_list2.KeepValue(1);
+		tile_list.Valuate(Utils_Tile.CanBuildStation, 2, platform_length + 2);
+		tile_list.KeepAboveValue(0);
+		tile_list.Valuate(Utils_Tile.CanBuildStation, platform_length + 2, 2);
+		tile_list2.KeepAboveValue(0);
 	}
 
 	tile_list.Valuate(this.TileValuator1, AIIndustry.GetLocation(other_ind), 4, platform_length);
@@ -509,8 +519,19 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 		foreach (tile, dummy in tile_list) {
 			if (!func(tile, platform_length)) {
 				AILog.Error("Error");
-				AISign.BuildSign(tile, "E");
+				if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(tile, "E");
 			}
+			if (trackdir == AIRail.RAILTRACK_NW_SE) {
+				local h = Utils_Tile.CanBuildStation(tile, 2, platform_length + 2);
+				if (h == -1) continue;
+				if (!Utils_Tile.FlattenLandForStation(tile, 2, platform_length + 2, h, false, true)) continue;
+			} else {
+				local h = Utils_Tile.CanBuildStation(tile, platform_length + 2, 2);
+				if (h == -1) continue;
+				if (!Utils_Tile.FlattenLandForStation(tile, platform_length + 2, 2, h, true, false)) continue;
+			}
+			/* If the town rating is too low and we can't fix it, return. */
+			if (!::main_instance._town_managers[AITile.GetClosestTown(tile)].ImproveTownRating(AITown.TOWN_RATING_POOR)) return null;
 			if (AIRail.BuildNewGRFRailStation(tile, trackdir, 2, platform_length + 2, false, cargo, ind_types[0], ind_types[1], distance, producing)) {
 				local manager = StationManager(AIStation.GetStationID(tile));
 				manager.SetCargoDrop(!producing);
@@ -531,6 +552,9 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 					}
 				}
 				return manager;
+			} else {
+				AILog.Error("Rail station building failed near " + AIIndustry.GetName(ind));
+				if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(tile, "RS Fail");
 			}
 		}
 	}

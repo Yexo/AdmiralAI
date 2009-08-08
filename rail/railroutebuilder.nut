@@ -378,8 +378,8 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		if (path == null || path == false) return -8;
 	}
 	if (!building_ok) return -5;
-	local depot1 = RailRouteBuilder.BuildDepot(path);
-	local depot2 = RailRouteBuilder.BuildDepot(first_path);
+	local depot1 = RailRouteBuilder.BuildDepot(path, ::main_instance.GetSetting("depot_near_station"));
+	local depot2 = RailRouteBuilder.BuildDepot(first_path, ::main_instance.GetSetting("depot_near_station"));
 	if (depot1 == null && depot2 == null) {
 		AILog.Error("COuldn't find a place for a rail depot!");
 		return -6;
@@ -391,7 +391,8 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 function RailRouteBuilder::TestBuildPath(path)
 {
 	local test = AITestMode();
-	return RailRouteBuilder.BuildPath(path);
+	local res = RailRouteBuilder.BuildPath(path);
+	return res;
 }
 
 function RailRouteBuilder::BuildPath(path)
@@ -414,10 +415,8 @@ function RailRouteBuilder::BuildPath(path)
 							}
 						}
 					} else if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_RAIL, prev)) {
-						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
-							AILog.Error("1 " + AIError.GetLastErrorString());
-							return false;
-						}
+						AILog.Error("1 " + AIError.GetLastErrorString());
+						return false;
 					}
 				} else {
 					if (AIBridge.IsBridgeTile(prev)) {
@@ -433,10 +432,8 @@ function RailRouteBuilder::BuildPath(path)
 						bridge_list.Valuate(AIBridge.GetMaxSpeed);
 						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 						if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
-							if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
-								AILog.Error("2 " + AIError.GetLastErrorString());
-								return false;
-							}
+							AILog.Error("2 " + AIError.GetLastErrorString());
+							return false;
 						}
 					}
 				}
@@ -447,7 +444,7 @@ function RailRouteBuilder::BuildPath(path)
 				if (AIRail.IsRailTile(prev) && !AICompany.IsMine(AITile.GetOwner(prev))) return false;
 				if (!AIRail.AreTilesConnected(prevprev, prev, path.GetTile())) {
 					if (!AIRail.BuildRail(prevprev, prev, path.GetTile())) {
-						local num_tries = 3;
+						local num_tries = 10;
 						local ok = false;
 						while (AIError.GetLastError() == AIError.ERR_VEHICLE_IN_THE_WAY && num_tries-- > 0) {
 							AIController.Sleep(200);
@@ -456,9 +453,11 @@ function RailRouteBuilder::BuildPath(path)
 						if (!ok) {
 							AILog.Error(prevprev + "   " + prev + "   " + path.GetTile());
 							AILog.Error("3 " + AIError.GetLastErrorString());
-							AISign.BuildSign(prevprev, "1");
-							AISign.BuildSign(prev, "2");
-							AISign.BuildSign(path.GetTile(),  "3");
+							if (::main_instance.GetSetting("debug_signs")) {
+								AISign.BuildSign(prevprev, "1");
+								AISign.BuildSign(prev, "2");
+								AISign.BuildSign(path.GetTile(),  "3");
+							}
 							return false;
 						}
 					}
@@ -466,7 +465,7 @@ function RailRouteBuilder::BuildPath(path)
 						assert(AIRail.TrainHasPowerOnRail(AIRail.GetRailType(prev), AIRail.GetCurrentRailType()));
 						if (!AIRail.ConvertRailType(prev, prev, AIRail.GetCurrentRailType())) {
 							AILog.Error("6 " + AIError.GetLastErrorString());
-							AISign.BuildSign(prev, "!! " + AIRail.GetRailType(prev) + "  " + AIRail.GetCurrentRailType());
+							if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(prev, "!! " + AIRail.GetRailType(prev) + "  " + AIRail.GetCurrentRailType());
 							return false;
 						}
 				}
@@ -519,8 +518,79 @@ function RailRouteBuilder::SignalPath(path)
 	}*/
 }
 
-function RailRouteBuilder::BuildDepot(path)
+class RPathItem
 {
+	_tile = null;
+	_parent = null;
+
+	constructor(tile)
+	{
+		this._tile = tile;
+	}
+
+	function GetTile()
+	{
+		return this._tile;
+	}
+
+	function GetParent()
+	{
+		return this._parent;
+	}
+};
+
+function ConnectDepotDiagonal(tile_a, tile_b, tile_c)
+{
+	if (!AITile.IsBuildable(tile_c)) return null;
+	local offset1 = (tile_c - tile_a) / 2;
+	local offset2 = (tile_c - tile_b) / 2;
+	local depot_tile = null;
+	local tiles = [];
+	tiles.append([tile_a, tile_a + offset1, tile_c]);
+	tiles.append([tile_b, tile_b + offset2, tile_c]);
+	if (AITile.IsBuildable(tile_c + offset1)) {
+		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
+			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tile_c)))) return null;
+		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
+			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tile_c)))) return null;
+		depot_tile = tile_c + offset1;
+		tiles.append([tile_a + offset1, tile_c, tile_c + offset1]);
+		tiles.append([tile_b + offset2, tile_c, tile_c + offset1]);
+	} else if (AITile.IsBuildable(tile_c + offset2)) {
+		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
+			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tilec)))) return null;
+		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
+			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tilec)))) return null;
+		depot_tile = tile_c + offset2;
+		tiles.append([tile_a + offset1, tile_c, tile_c + offset2]);
+		tiles.append([tile_b + offset2, tile_c, tile_c + offset2]);
+	}
+	{
+		local test = AITestMode();
+		foreach (t in tiles) {
+			if (!AIRail.BuildRail(t[0], t[1], t[2])) return null;
+		}
+		if (!AIRail.BuildRailDepot(depot_tile, tile_c)) return null;
+	}
+	foreach (t in tiles) {
+		if (!AIRail.BuildRail(t[0], t[1], t[2])) return null;
+	}
+	if (!AIRail.BuildRailDepot(depot_tile, tile_c)) return null;
+	return depot_tile;
+}
+
+function RailRouteBuilder::BuildDepot(path, reverse)
+{
+	if (reverse) {
+		local rpath = RPathItem(path.GetTile());
+		while (path.GetParent() != null) {
+			path = path.GetParent();
+			local npath = RPathItem(path.GetTile());
+			npath._parent = rpath;
+			rpath = npath;
+		}
+		path = rpath;
+	}
 	local prev = null;
 	local pp = null;
 	local ppp = null;
@@ -528,7 +598,7 @@ function RailRouteBuilder::BuildDepot(path)
 	local ppppp = null;
 	while (path != null) {
 		if (ppppp != null) {
-			if (ppppp - pppp == pppp - ppp && pppp - ppp == ppp - pp && ppp - pp == pp - prev && pp - prev == prev - path.GetTile()) {
+			if (ppppp - pppp == pppp - ppp && pppp - ppp == ppp - pp && ppp - pp == pp - prev) {
 				local offsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
 				                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0)];
 				foreach (offset in offsets) {
@@ -577,6 +647,29 @@ function RailRouteBuilder::BuildDepot(path)
 							break;
 					}
 					if (AIRail.BuildRailDepot(ppp + offset, ppp)) return ppp + offset;
+				}
+			} else if (ppppp - ppp == ppp - prev) {
+				local offsets = null;
+				if (abs(ppppp - ppp) == AIMap.GetTileIndex(1, 1)) {
+					if (ppppp - pppp == AIMap.GetTileIndex(1, 0) || prev - pp == AIMap.GetTileIndex(1, 0)) {
+						AILog.Warning("    1111");
+						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(-2, 0));
+						if (d != null) return d;
+					} else {
+						AILog.Warning("    2222");
+						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(0, -2));
+						if (d != null) return d;
+					}
+				} else {
+					if (ppppp - pppp == AIMap.GetTileIndex(0, -1) || prev - pp == AIMap.GetTileIndex(0, -1)) {
+						AILog.Warning("    3333");
+						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(2, 0));
+						if (d != null) return d;
+					} else {
+						AILog.Warning("    4444");
+						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(0, -2));
+						if (d != null) return d;
+					}
 				}
 			}
 		}

@@ -34,9 +34,11 @@ class RailPF
 	_cost_bridge_per_tile = null;  ///< The cost per tile of a new bridge, this is added to _cost_tile.
 	_cost_tunnel_per_tile = null;  ///< The cost per tile of a new tunnel, this is added to _cost_tile.
 	_cost_coast = null;            ///< The extra cost for a coast tile.
+	_cost_road_tile = null;        ///< The extra cost for a road tile.
 	_pathfinder = null;            ///< A reference to the used AyStar object.
 	_max_bridge_length = null;     ///< The maximum length of a bridge that will be build.
 	_max_tunnel_length = null;     ///< The maximum length of a tunnel that will be build.
+	_goal_estimate_tile = null;
 
 	cost = null;                   ///< Used to change the costs.
 	_running = null;
@@ -53,6 +55,7 @@ class RailPF
 		this._cost_bridge_per_tile = 50;
 		this._cost_tunnel_per_tile = 40;
 		this._cost_coast = 20;
+		this._cost_road_tile = 1000;
 		this._max_bridge_length = 8;
 		this._max_tunnel_length = 10;
 		this._pathfinder = this._aystar_class(this._Cost, this._Estimate, this._Neighbours, this._CheckDirection, this, this, this, this);
@@ -77,6 +80,12 @@ class RailPF
 			nsources.push(path);
 		}
 		this._goals = goals;
+		this._goal_estimate_tile = goals[0][0];
+		foreach (tile in goals) {
+			if (AIMap.DistanceManhattan(sources[0][0], tile[0]) < AIMap.DistanceManhattan(sources[0][0], this._goal_estimate_tile)) {
+				this._goal_estimate_tile = tile[0];
+			}
+		}
 		this._pathfinder.InitializePath(nsources, goals, ignored_tiles);
 	}
 
@@ -112,6 +121,7 @@ class RailPF.Cost
 			case "bridge_per_tile":   this._main._cost_bridge_per_tile = val; break;
 			case "tunnel_per_tile":   this._main._cost_tunnel_per_tile = val; break;
 			case "coast":             this._main._cost_coast = val; break;
+			case "road_tile":         this._main._cost_road_tile = val; break;
 			case "max_bridge_length": this._main._max_bridge_length = val; break;
 			case "max_tunnel_length": this._main._max_tunnel_length = val; break;
 			default: throw("the index '" + idx + "' does not exist");
@@ -132,6 +142,7 @@ class RailPF.Cost
 			case "bridge_per_tile":   return this._main._cost_bridge_per_tile;
 			case "tunnel_per_tile":   return this._main._cost_tunnel_per_tile;
 			case "coast":             return this._main._cost_coast;
+			case "road_tile":         return this._main._cost_road_tile;
 			case "max_bridge_length": return this._main._max_bridge_length;
 			case "max_tunnel_length": return this._main._max_tunnel_length;
 			default: throw("the index '" + idx + "' does not exist");
@@ -252,20 +263,19 @@ function RailPF::_Cost(path, new_tile, new_direction, self)
 		cost += self._cost_slope;
 	}
 
+	/* Check if the next tile is a road tile. */
+	if (AITile.HasTransportType(new_tile, AITile.TRANSPORT_ROAD)) {
+		cost += self._cost_road_tile;
+	}
+
 	return path.GetCost() + cost;
 }
 
 function RailPF::_Estimate(cur_tile, cur_direction, goal_tiles, self)
 {
-	local min_cost = self._max_cost;
-	/* As estimate we multiply the lowest possible cost for a single tile with
-	 *  with the minimum number of tiles we need to traverse. */
-	foreach (tile in goal_tiles) {
-		local dx = abs(AIMap.GetTileX(cur_tile) - AIMap.GetTileX(tile[0]));
-		local dy = abs(AIMap.GetTileY(cur_tile) - AIMap.GetTileY(tile[0]));
-		min_cost = min(min_cost, min(dx, dy) * (self._cost_diagonal_tile /*+ self._cost_new_rail*/) * 2 + (max(dx, dy) - min(dx, dy)) * (self._cost_tile /*+ self._cost_new_rail*/));
-	}
-	return min_cost;
+	local dx = abs(AIMap.GetTileX(cur_tile) - AIMap.GetTileX( self._goal_estimate_tile));
+	local dy = abs(AIMap.GetTileY(cur_tile) - AIMap.GetTileY( self._goal_estimate_tile));
+	return min(dx, dy) * (self._cost_diagonal_tile /*+ self._cost_new_rail*/) * 2 + (max(dx, dy) - min(dx, dy)) * (self._cost_tile /*+ self._cost_new_rail*/);
 }
 
 function RailPF::_Neighbours(path, cur_node, self)

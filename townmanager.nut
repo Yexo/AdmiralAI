@@ -24,6 +24,14 @@
  */
 class TownManager
 {
+	_town_id = null;             ///< The TownID this TownManager is managing.
+	_unused_stations = null;     ///< An array with all StationManagers of unused stations within this town.
+	_used_stations = null;       ///< An array with all StationManagers of in use stations within this town.
+	_depot_tiles = null;         ///< A mapping of road types to tileindexes with a depot.
+	_station_failed_date = null; ///< Don't try to build a new station within 60 days of failing to build one.
+	_airport_failed_date = null; ///< Don't try to build a new airport within 60 days of failing to build one.
+	_airports = null;            ///< An array of all airports build in this town.
+
 /* public: */
 
 	/**
@@ -108,13 +116,7 @@ class TownManager
 	 */
 	function GetExistingAirport(allow_small_airport);
 
-	_town_id = null;             ///< The TownID this TownManager is managing.
-	_unused_stations = null;     ///< An array with all StationManagers of unused stations within this town.
-	_used_stations = null;       ///< An array with all StationManagers of in use stations within this town.
-	_depot_tiles = null;         ///< A mapping of road types to tileindexes with a depot.
-	_station_failed_date = null; ///< Don't try to build a new station within 60 days of failing to build one.
-	_airport_failed_date = null; ///< Don't try to build a new airport within 60 days of failing to build one.
-	_airports = null;            ///< An array of all airports build in this town.
+	function TryBuildAirport(types);
 };
 
 function TownManager::CanBuildAirport(allow_small_airport)
@@ -154,15 +156,15 @@ function TownManager::GetExistingAirport(allow_small_airport)
 	foreach (airport in this._airports) {
 		/* If there are zero or one planes going to the airport, we assume
 		 * it can handle some more planes. */
-		if (AIVehicleList_Station(airport).Count() <= 1 && (allow_small_airport || !AircraftManager.IsSmallAirport(airport))) return airport;
+		if (AIVehicleList_Station(airport).Count() <= 1 && (allow_small_airport || !Utils_Airport.IsSmallAirport(airport))) return airport;
 		/* Skip the airport if it can't handle more planes. */
 		if (!this.CanBuildPlanes(airport)) continue;
 		/* If the airport is small and small airports are not ok, don't return it. */
-		if (AircraftManager.IsSmallAirport(airport) && !allow_small_airport) continue;
+		if (Utils_Airport.IsSmallAirport(airport) && !allow_small_airport) continue;
 		/* Only return an airport if there are enough waiting passengers, ie the current
 		 * number of planes can't handle it. */
 		if (AIStation.GetCargoWaiting(airport, ::main_instance._passenger_cargo_id) > 500 ||
-				(AIStation.GetCargoWaiting(airport, ::main_instance._passenger_cargo_id) > 250 && AircraftManager.IsSmallAirport(airport)) ||
+				(AIStation.GetCargoWaiting(airport, ::main_instance._passenger_cargo_id) > 250 && Utils_Airport.IsSmallAirport(airport)) ||
 				AIStation.GetCargoRating(airport, ::main_instance._passenger_cargo_id) < 50) {
 			return airport;
 		}
@@ -182,7 +184,7 @@ function TownManager::BuildAirport(allow_small_airport)
 	if (AIDate.GetCurrentDate() - this._airport_failed_date < 60) return null;
 
 	/* Try to build a station. */
-	local airport =  this.TryBuildAirport([AIAirport.AT_INTERCON, AIAirport.AT_INTERNATIONAL, AIAirport.AT_METROPOLITAN, AIAirport.AT_LARGE]);
+	airport =  this.TryBuildAirport([AIAirport.AT_INTERCON, AIAirport.AT_INTERNATIONAL, AIAirport.AT_METROPOLITAN, AIAirport.AT_LARGE]);
 	if (airport == null && allow_small_airport) airport = this.TryBuildAirport([AIAirport.AT_COMMUTER, AIAirport.AT_SMALL]);
 	if (airport != null) {
 		this._airports.push(airport);
@@ -200,7 +202,7 @@ function TownManager::ScanMap()
 
 	foreach (station_id, dummy in station_list) {
 		local vehicle_list = AIVehicleList_Station(station_id);
-		vehicle_list.RemoveList(::vehicles_to_sell);
+		vehicle_list.RemoveList(::main_instance.sell_vehicles);
 		if (vehicle_list.Count() > 0) {
 			this._used_stations.push(StationManager(station_id));
 		} else {
@@ -223,51 +225,6 @@ function TownManager::ScanMap()
 	}
 }
 
-function TownManager::CanPlaceAirport(tile, type)
-{
-	if (!AITile.IsBuildableRectangle(tile, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type))) return -1;
-	local min_height = Utils_Tile.GetRealHeight(tile);
-	local max_height = min_height;
-	for (local x = AIMap.GetTileX(tile); x < AIMap.GetTileX(tile) + AIAirport.GetAirportWidth(type); x++) {
-		for (local y = AIMap.GetTileY(tile); y < AIMap.GetTileY(tile) + AIAirport.GetAirportHeight(type); y++) {
-			local h = Utils_Tile.GetRealHeight(AIMap.GetTileIndex(x, y));
-			min_height = min(min_height, h);
-			max_height = max(max_height, h);
-			if (max_height - min_height > 2) return -1;
-		}
-	}
-	local target_heights = [(max_height + min_height) / 2];
-	if (max_height - min_height == 1) target_heights.push(max_height);
-	foreach (height in target_heights) {
-		if (height == 0) continue;
-		local tf_ok = true;
-		for (local x = AIMap.GetTileX(tile); tf_ok && x < AIMap.GetTileX(tile) + AIAirport.GetAirportWidth(type); x++) {
-			for (local y = AIMap.GetTileY(tile); tf_ok && y < AIMap.GetTileY(tile) + AIAirport.GetAirportHeight(type); y++) {
-				local t = AIMap.GetTileIndex(x, y);
-				local h = Utils_Tile.GetRealHeight(t);
-				if (h < height && !AITile.RaiseTile(t, AITile.GetComplementSlope(AITile.GetSlope(t)))) {
-					tf_ok = false;
-					break;
-				}
-				local h = Utils_Tile.GetRealHeight(t);
-				/* We need to check this twice, because the first one flattens the tile, and the second time it's raised. */
-				if (h < height && !AITile.RaiseTile(t, AITile.GetComplementSlope(AITile.GetSlope(t)))) {
-					tf_ok = false;
-					break;
-				}
-				if (h > height && !AITile.LowerTile(t, AITile.GetSlope(t) != AITile.SLOPE_FLAT ? AITile.GetSlope(t) : AITile.SLOPE_ELEVATED)) {
-					tf_ok = false;
-					break;
-				}
-			}
-		}
-		if (tf_ok) {
-			return height;
-		}
-	}
-	return -1;
-}
-
 function TownManager::AirportLocationValuator(tile, type, town_center)
 {
 	return AIMap.DistanceSquare(town_center, tile + AIMap.GetTileIndex(AIAirport.GetAirportWidth(type) / 2, AIAirport.GetAirportHeight(type) / 2));
@@ -275,66 +232,8 @@ function TownManager::AirportLocationValuator(tile, type, town_center)
 
 function TownManager::PlaceAirport(tile, type, height)
 {
-	local flatten_all = AIGameSettings.GetValue("construction.build_on_slopes") == 0;
-	local min_x = AIMap.GetTileX(tile);
-	local max_x = min_x + AIAirport.GetAirportWidth(type) - 1;
-	local min_y = AIMap.GetTileY(tile);
-	local max_y = min_y + AIAirport.GetAirportHeight(type) - 1;
-	/* Loop over all tiles the airport will cover. */
-	for (local x = min_x; x <= max_x; x++) {
-		for (local y = min_y; y <= max_y; y++) {
-			local t = AIMap.GetTileIndex(x, y);
-			local h = Utils_Tile.GetRealHeight(t);
-			if (abs(height - h) >= 2) {
-				AILog.Error("TownManager::PlaceAirport(): Difference in tile height is too big");
-				return -2;
-			}
-			/* AITile.GetComplementSlope can't handle steep slopes, so raise
-			 * the lowest corner of tiles with a steep slope. */
-			if (AITile.IsSteepSlope(AITile.GetSlope(t))) {
-				switch (AITile.GetSlope(t)) {
-					case AITile.SLOPE_STEEP_W:
-						if (!AITile.RaiseTile(t, AITile.SLOPE_E)) return -2;
-						break;
-					case AITile.SLOPE_STEEP_S:
-						if (!AITile.RaiseTile(t, AITile.SLOPE_N)) return -2;
-						break;
-					case AITile.SLOPE_STEEP_E:
-						if (!AITile.RaiseTile(t, AITile.SLOPE_W)) return -2;
-						break;
-					case AITile.SLOPE_STEEP_N:
-						if (!AITile.RaiseTile(t, AITile.SLOPE_S)) return -2;
-						break;
-				}
-			}
-			if (h < height) {
-				/* Tiles with there heighest corner lower than the desired height
-				 * that are not flat need to be terraformed twice. */
-				if (AITile.GetSlope(t) != AITile.SLOPE_FLAT) {
-					if (!AITile.RaiseTile(t, AITile.GetComplementSlope(AITile.GetSlope(t)))) return -2;
-				}
-				local slope = AITile.GetComplementSlope(AITile.GetSlope(t));
-				if (!flatten_all) {
-					/* With build-on-slopes on, don't terraform every tile. */
-					if (x == min_x) slope = slope & AITile.SLOPE_SW;
-					if (x == max_x) slope = slope & AITile.SLOPE_NE;
-					if (y == min_y) slope = slope & AITile.SLOPE_SE;
-					if (y == max_y) slope = slope & AITile.SLOPE_NW;
-				}
-				if (slope != AITile.SLOPE_FLAT && !AITile.RaiseTile(t, slope)) return -2;
-			} else if (h > height) {
-				if (!AITile.LowerTile(t, AITile.GetSlope(t) != AITile.SLOPE_FLAT ? AITile.GetSlope(t) : AITile.SLOPE_ELEVATED)) return -2;
-			} else { /* h == height */
-				/* It's cheaper to flatten tiles in the center of the airport. */
-				local do_tf = x != min_x && x != max_x && y != min_y && y != max_y;
-				local res = true;
-				if ((flatten_all || do_tf) && AITile.GetSlope(t) != AITile.SLOPE_FLAT) {
-					res = AITile.RaiseTile(t, AITile.GetComplementSlope(AITile.GetSlope(t)));
-				}
-				if (flatten_all && !res) return -2;
-			}
-		}
-	}
+	if (AIAirport.GetNoiseLevelIncrease(tile, type) > AITown.GetAllowedNoise(this._town_id)) return -2;
+	if (!Utils_Tile.FlattenLandForStation(tile, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type), height)) return -2;
 	/* Check whether the town rating is still good enough. */
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_POOR) {
@@ -348,8 +247,7 @@ function TownManager::PlaceAirport(tile, type, height)
 	if (succeeded) return 0;
 	if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -1;
 	AILog.Error("Airport building failed: " + AIError.GetLastErrorString());
-	AISign.BuildSign(tile, "!!");
-	throw("test");
+	if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(tile, "AP fail");
 	return -2;
 }
 
@@ -379,7 +277,7 @@ function TownManager::TryBuildAirport(types)
 		}
 		{
 			local test = AITestMode();
-			tile_list.Valuate(TownManager.CanPlaceAirport, type);
+			tile_list.Valuate(Utils_Tile.CanBuildStation, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type));
 			tile_list.KeepAboveValue(-1);
 		}
 		if (tile_list.Count() == 0) continue;
@@ -457,7 +355,7 @@ function TownManager::CanGetStation()
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return false;
 	if (AIDate.GetCurrentDate() - this._station_failed_date < 60) return false;
-	if (max(1, (AITown.GetPopulation(this._town_id) / 300).tointeger()) > this._used_stations.len()) return true;
+	if (max(1, AITown.GetPopulation(this._town_id) / 300) > this._used_stations.len()) return true;
 	return false;
 }
 

@@ -24,6 +24,13 @@
  */
 class BusLineManager
 {
+	_routes = null;                      ///< An array containing all BusLines we manage.
+	_max_distance_existing_route = null; ///< The maximum distance between industries where we'll still check if they are alerady connected.
+	_max_distance_new_line = null;
+	_skip_from = null;                   ///< Skip this amount of source towns in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
+	_skip_to = null;                     ///< Skip this amount of target towns in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
+	_last_search_finished = null;
+
 /* public: */
 
 	/**
@@ -84,13 +91,6 @@ class BusLineManager
 	 *  again, as it will start over with a greater range.
 	 */
 	function _NewLineExistingRoadGenerator(num_routes_to_check);
-
-	_routes = null;                      ///< An array containing all BusLines we manage.
-	_max_distance_existing_route = null; ///< The maximum distance between industries where we'll still check if they are alerady connected.
-	_max_distance_new_line = null;
-	_skip_from = null;                   ///< Skip this amount of source towns in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
-	_skip_to = null;                     ///< Skip this amount of target towns in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
-	_last_search_finished = null;
 };
 
 function BusLineManager::Save()
@@ -114,14 +114,14 @@ function BusLineManager::AfterLoad()
 	local st_to = {};
 	foreach (v, dummy in vehicle_list) {
 		if (AIOrder.GetOrderCount(v) != 3) {
-			::vehicles_to_sell.AddItem(v, 0);
+			::main_instance.sell_vehicles.AddItem(v, 0);
 			continue;
 		}
 		if (AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(v, 0))) AIOrder.MoveOrder(v, 0, 2);
 		if (!AIRoad.IsRoadStationTile(AIOrder.GetOrderDestination(v, 0)) ||
 				!AIRoad.IsRoadStationTile(AIOrder.GetOrderDestination(v, 1)) ||
 				!AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(v, 2))) {
-			::vehicles_to_sell.AddItem(v, 0);
+			::main_instance.sell_vehicles.AddItem(v, 0);
 			continue;
 		}
 		local station_a = AIStation.GetStationID(AIOrder.GetOrderDestination(v, 0));
@@ -134,12 +134,12 @@ function BusLineManager::AfterLoad()
 				station_from.AddBusses(1, AIMap.DistanceManhattan(AIStation.GetLocation(station_from.GetStationID()), AIStation.GetLocation(station_to.GetStationID())), AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v)));
 				station_to.AddBusses(1, AIMap.DistanceManhattan(AIStation.GetLocation(station_from.GetStationID()), AIStation.GetLocation(station_to.GetStationID())), AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v)));
 			} else {
-				::vehicles_to_sell.AddItem(v, 0);
+				::main_instance.sell_vehicles.AddItem(v, 0);
 				continue;
 			}
 		} else {
 			if (st_to.rawin(station_b) || st_to.rawin(station_b) || st_from.rawin(station_b)) {
-				::vehicles_to_sell.AddItem(v, 0);
+				::main_instance.sell_vehicles.AddItem(v, 0);
 				continue;
 			}
 			/* New BusLine from station_a to station_b. */

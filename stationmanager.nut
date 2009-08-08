@@ -24,6 +24,13 @@
  */
 class StationManager
 {
+	_station_id = null;      ///< The StationID of the station this StationManager manages.
+	_truck_points = null;    ///< The total truck points of trucks that have this station in their order list.
+	_bus_points = null;      ///< The total bus points of busses that have this station in their order list.
+	_is_drop_station = null; ///< True if this stations is used for dropping cargo. (passengers don't count)
+	_rail_type = null;       ///< The RailType of this station and the tracks in front of it.
+	_platform_length = null; ///< The length of the train platforms in tiles.
+
 /* public: */
 
 	/**
@@ -146,13 +153,6 @@ class StationManager
 	 * @param speed The maximum speed of the vehicle.
 	 */
 	function GetPoints(speed, distance);
-
-	_station_id = null;      ///< The StationID of the station this StationManager manages.
-	_truck_points = null;    ///< The total truck points of trucks that have this station in their order list.
-	_bus_points = null;      ///< The total bus points of busses that have this station in their order list.
-	_is_drop_station = null; ///< True if this stations is used for dropping cargo. (passengers don't count)
-	_rail_type = null;       ///< The RailType of this station and the tracks in front of it.
-	_platform_length = null; ///< The length of the train platforms in tiles.
 };
 
 function StationManager::SetCargoDrop(is_drop_station)
@@ -201,7 +201,7 @@ function StationManager::CloseTruckStation()
 			break;
 		}
 	}
-	::main_instance._truckline_manager.ClosedStation(this);
+	::main_instance._truck_manager.ClosedStation(this);
 }
 
 function StationManager::GetStationID()
@@ -213,14 +213,14 @@ function StationManager::CanAddTrucks(num, distance, speed)
 {
 	local station_max_points = 90000;
 	if (this._is_drop_station) station_max_points = 80000;
-	local station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
+	local station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP);
 	local num_truck_stops = station_tilelist.Count();
 	local points_per_truck = StationManager.GetPoints(distance, speed);
 	local max_points = station_max_points * num_truck_stops;
 	if (max_points - this._truck_points >= points_per_truck * num) return num;
 	local points_too_many = points_per_truck * num + this._truck_points - max_points;
 	this._TryBuildExtraTruckStops(((points_too_many + station_max_points - 1) / station_max_points).tointeger(), false);
-	station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
+	station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP);
 	num_truck_stops = station_tilelist.Count();
 	max_points = station_max_points * num_truck_stops;
 	if (this._truck_points < max_points) return ((max_points - this._truck_points) / points_per_truck).tointeger();
@@ -248,7 +248,7 @@ function StationManager::CanAddBusses(num, distance, speed)
 {
 	local points_per_bus = StationManager.GetPoints(distance, speed);
 	if (this._bus_points < 70000) return ((70000 - this._bus_points) / points_per_bus).tointeger();
-	return ((70000 - this._bus_points - points_per_bus + 1) / points_per_bus).tointeger()
+	return ((70000 - this._bus_points - points_per_bus + 1) / points_per_bus).tointeger();
 }
 
 function StationManager::AddBusses(num, distance, speed)

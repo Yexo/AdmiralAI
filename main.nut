@@ -19,10 +19,14 @@
 
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
 
+main_instance <- null;
+//local main_instance;
+
 import("queue.fibonacci_heap", "FibonacciHeap", 1);
 
-require("utils/general.nut");
+require("utils/airport.nut");
 require("utils/array.nut");
+require("utils/general.nut");
 require("utils/tile.nut");
 require("utils/valuator.nut");
 
@@ -50,9 +54,8 @@ require("rail/trainline.nut");
 
 /**
  * @todo
- *  - Use %AITransactionMode in RepairRoute to check for the costs.
  *  - Inner town routes. Not that important since we have multiple bus stops per town.
- *  - Amount of trucks build initially should depend not only on distance but also on production.
+ *  - Amount of vehicles build initially should depend not only on distance but also on production.
  *  - optimize rpf estimate function by adding 1 turn and height difference. (could be committed)
  *  - If we can't transport more cargo to a certain station, try to find / build a new station we can transport
  *     the goods to and split it.
@@ -60,16 +63,14 @@ require("rail/trainline.nut");
  *  - Build road stations up or down a hill.
  *  - Check if a station stopped accepting a certain cargo: if so, stop accepting more trucks for that cargo
  *     and send a few of the existing trucks to another destination.
- *  - Experiment with giving busses a full load order on one of the two busstations.
  *  - Try to transport oil from oilrigs to the coast with ships, and then to a refinery with road vehicles. Better
  *     yet would be to directly transport it to oilrigs if distances is small enough, otherwise option 1.
  * @bug
- *  - Don't start / end with building a bridge / tunnel, as the tile before it might not be free.
  *  - When building a truck station near a city, connecting it with the road may fail. Either demolish some tiles
  *     or just pathfind from station to other industry, so even though the first part was difficult, a route is build.
- *  - Upon loading a game, scan all vehicles and set autoreplace for those types we don't choose as new engine_id.
  *  - If building a truck station near an industry failed, don't try again. Better yet: pathfind first, if succesfull
  *     try to build a truck station and connect it with the endpoint, if twice successfull (both stations), then build the route
+ *  - Don't keep trying to connect a station when pathfinding has already failed a few times (ie a station on an island).
  */
 
 /**
@@ -77,6 +78,25 @@ require("rail/trainline.nut");
  */
 class AdmiralAI extends AIController
 {
+/* private: */
+
+	_passenger_cargo_id = null;        ///< The CargoID of the main passenger cargo.
+	_town_managers = null;             ///< A table mapping TownID to TownManager.
+	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
+	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
+	_aircraft_manager = null; ///< The AircraftManager managing all air routes.
+	_train_manager = null;  ///< The TrainManager managing all train routes.
+	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
+	_save_data = null;      ///< Cache of save data during load.
+	last_vehicle_check = null;
+	last_cash_output = null;
+	last_improve_buslines_date = null;
+	need_vehicle_check = null;
+	sell_stations = null;
+	sell_vehicles = null;
+	_sorted_cargo_list = null;
+	_sorted_cargo_list_updated = null;
+
 /* public: */
 
 	constructor() {
@@ -115,10 +135,6 @@ class AdmiralAI extends AIController
 		this._train_manager = TrainManager();
 		this._pending_events = [];
 
-		if (::vehicles_to_sell == null) {
-			::vehicles_to_sell = AIList();
-		}
-
 		this._save_data = null;
 
 		this.last_vehicle_check = 0;
@@ -126,6 +142,8 @@ class AdmiralAI extends AIController
 		this.last_improve_buslines_date = 0;
 		this.need_vehicle_check = false;
 		this.sell_stations = [];
+		this.sell_vehicles = AIList();
+		this._sorted_cargo_list_updated = 0;
 	}
 
 	/**
@@ -183,23 +201,23 @@ class AdmiralAI extends AIController
 	 * @note This is called by OpenTTD, no need to call from within the AI.
 	 */
 	function Start();
-
-/* private: */
-
-	_passenger_cargo_id = null;        ///< The CargoID of the main passenger cargo.
-	_town_managers = null;             ///< A table mapping TownID to TownManager.
-	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
-	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
-	_aircraft_manager = null; ///< The AircraftManager managing all air routes.
-	_train_manager = null;  ///< The TrainManager managing all train routes.
-	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
-	_save_data = null;      ///< Cache of save data during load.
-	last_vehicle_check = null;
-	last_cash_output = null;
-	last_improve_buslines_date = null;
-	need_vehicle_check = null;
-	sell_stations = null;
 };
+
+function AdmiralAI::CargoValuator(cargo_id)
+{
+	local val = AICargo.GetCargoIncome(cargo_id, 80, 40);
+	return val + (AIBase.RandRange(val) / 5);
+}
+
+function AdmiralAI::GetSortedCargoList()
+{
+	if (AIDate.GetCurrentDate() - this._sorted_cargo_list_updated > 200) {
+		this._sorted_cargo_list = AICargoList();
+		this._sorted_cargo_list.Valuate(AdmiralAI.CargoValuator);
+		this._sorted_cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	}
+	return this._sorted_cargo_list;
+}
 
 function AdmiralAI::Save()
 {
@@ -207,10 +225,11 @@ function AdmiralAI::Save()
 
 	local data = {};
 	local to_sell = [];
-	foreach (veh, dummy in ::vehicles_to_sell) {
+	foreach (veh, dummy in this.sell_vehicles) {
 		to_sell.push(veh);
 	}
 	data.rawset("vehicles_to_sell", to_sell);
+	data.rawset("stations_to_sell", this.sell_stations);
 	data.rawset("trucklinemanager", this._truck_manager.Save());
 	data.rawset("buslinemanager", this._bus_manager.Save());
 	data.rawset("trainmanager", this._train_manager.Save());
@@ -227,8 +246,12 @@ function AdmiralAI::Load(data)
 
 	if (data.rawin("vehicles_to_sell")) {
 		foreach (v in data.rawget("vehicles_to_sell")) {
-			if (AIVehicle.IsValidVehicle(v)) ::vehicles_to_sell.AddItem(v, 0);
+			if (AIVehicle.IsValidVehicle(v)) this.sell_vehicles.AddItem(v, 0);
 		}
+	}
+
+	if (data.rawin("stations_to_sell")) {
+		this.sell_stations = data.rawget("stations_to_sell");
 	}
 
 	if (data.rawin("trucklinemanager")) {
@@ -347,9 +370,9 @@ function AdmiralAI::HandleEvents()
 	foreach (event_pair in this._pending_events) {
 		switch (event_pair[0]) {
 			case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
-				if (::vehicles_to_sell.HasItem(event_pair[1])) {
+				if (this.sell_vehicles.HasItem(event_pair[1])) {
 					AIVehicle.SellVehicle(event_pair[1]);
-					::vehicles_to_sell.RemoveItem(event_pair[1]);
+					this.sell_vehicles.RemoveItem(event_pair[1]);
 				}
 				break;
 
@@ -369,9 +392,9 @@ function AdmiralAI::HandleEvents()
 
 function AdmiralAI::SendVehicleToSellToDepot()
 {
-	::vehicles_to_sell.Valuate(AIVehicle.IsValidVehicle);
-	::vehicles_to_sell.KeepValue(1);
-	foreach (vehicle, dummy in ::vehicles_to_sell) {
+	this.sell_vehicles.Valuate(AIVehicle.IsValidVehicle);
+	this.sell_vehicles.KeepValue(1);
+	foreach (vehicle, dummy in this.sell_vehicles) {
 		local tile = AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER);
 		local dest_is_depot = false;
 		switch (AIVehicle.GetVehicleType(vehicle)) {
@@ -466,7 +489,7 @@ function AdmiralAI::Start()
 		AICompany.SetAutoRenewStatus(false);
 	}
 
-	/* All vehicle groups are deleted after load and recreated in all AfterLoadGRFs
+	/* All vehicle groups are deleted after load and recreated in all AfterLoad
 	 * functions. This is done so we don't have so save the GroupIDs and can
 	 * easier load savegames saved by other AIs that use a different group
 	 * structure. */
@@ -588,5 +611,3 @@ function AdmiralAI::Start()
 	}
 };
 
-vehicles_to_sell <- null;
-main_instance <- null;

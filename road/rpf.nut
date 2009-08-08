@@ -31,6 +31,21 @@
  */
 class RPF
 {
+	_max_cost = null;              ///< The maximum cost for a route.
+	_cost_tile = null;             ///< The cost for a single tile.
+	_cost_no_existing_road = null; ///< The cost that is added to _cost_tile if no road exists yet.
+	_cost_turn = null;             ///< The cost that is added to _cost_tile if the direction changes.
+	_cost_slope = null;            ///< The extra cost if a road tile is sloped.
+	_cost_bridge_per_tile = null;  ///< The cost per tile of a new bridge, this is added to _cost_tile.
+	_cost_tunnel_per_tile = null;  ///< The cost per tile of a new tunnel, this is added to _cost_tile.
+	_cost_coast = null;            ///< The extra cost for a coast tile.
+	_pathfinder = null;            ///< A reference to the used AyStar object.
+	_max_bridge_length = null;     ///< The maximum length of a bridge that will be build.
+	_max_tunnel_length = null;     ///< The maximum length of a tunnel that will be build.
+	_running = null;               ///< Used to prevent changing the costs during pathfinding.
+	_goal_estimate_tile = null;
+	_max_path_length = null;
+
 /* public: */
 
 	cost = null;                   ///< Used to change the costs. An instance of RPF::Cost.
@@ -73,24 +88,7 @@ class RPF
 	 * @see AyStar::FindPath()
 	 */
 	function FindPath(iterations);
-
-/* private: */
-
-	_max_cost = null;              ///< The maximum cost for a route.
-	_cost_tile = null;             ///< The cost for a single tile.
-	_cost_no_existing_road = null; ///< The cost that is added to _cost_tile if no road exists yet.
-	_cost_turn = null;             ///< The cost that is added to _cost_tile if the direction changes.
-	_cost_slope = null;            ///< The extra cost if a road tile is sloped.
-	_cost_bridge_per_tile = null;  ///< The cost per tile of a new bridge, this is added to _cost_tile.
-	_cost_tunnel_per_tile = null;  ///< The cost per tile of a new tunnel, this is added to _cost_tile.
-	_cost_coast = null;            ///< The extra cost for a coast tile.
-	_pathfinder = null;            ///< A reference to the used AyStar object.
-	_max_bridge_length = null;     ///< The maximum length of a bridge that will be build.
-	_max_tunnel_length = null;     ///< The maximum length of a tunnel that will be build.
-	_running = null;               ///< Used to prevent changing the costs during pathfinding.
-	_goal_estimate_tile = null;
-	_max_path_length = null;
-}
+};
 
 /**
  * A simple class that is used as accessor for all cost functions.
@@ -137,11 +135,11 @@ class RPF.Cost
 		}
 	}
 
-	function constructor(main)
+	constructor(main)
 	{
 		this._main = main;
 	}
-}
+};
 
 function RPF::InitializePath(sources, goals, max_length_multiplier, max_length_offset, ignored_tiles = [])
 {
@@ -151,6 +149,11 @@ function RPF::InitializePath(sources, goals, max_length_multiplier, max_length_o
 	}
 	this._max_path_length = max_length_offset + max_length_multiplier * AIMap.DistanceManhattan(sources[0], goals[0]);
 	this._goal_estimate_tile = goals[0];
+	foreach (tile in goals) {
+		if (AIMap.DistanceManhattan(sources[0], tile) < AIMap.DistanceManhattan(sources[0], this._goal_estimate_tile)) {
+			this._goal_estimate_tile = tile;
+		}
+	}
 	this._pathfinder.InitializePath(nsources, goals, ignored_tiles);
 }
 
@@ -247,13 +250,9 @@ function RPF::_Cost(path, new_tile, new_direction, self)
 
 function RPF::_Estimate(cur_tile, cur_direction, goal_tiles, self)
 {
-	local min_cost = self._max_cost;
 	/* As estimate we multiply the lowest possible cost for a single tile with
 	 * with the minimum number of tiles we need to traverse. */
-	foreach (tile in goal_tiles) {
-		min_cost = min(AIMap.DistanceManhattan(cur_tile, tile) * self._cost_tile, min_cost);
-	}
-	return min_cost;
+	return AIMap.DistanceManhattan(cur_tile, self._goal_estimate_tile) * self._cost_tile;
 }
 
 function RPF::_Neighbours(path, cur_node, self)

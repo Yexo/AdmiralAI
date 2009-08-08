@@ -107,7 +107,60 @@ class AyStar
 	 *  which is an indication it is not yet done looking for a route.
 	 */
 	function FindPath(iterations);
-}
+};
+
+/**
+ * The path of the AyStar algorithm.
+ *  It is reversed, that is, the first entry is more close to the goal-nodes
+ *  than his GetParent(). You can walk this list to find the whole path.
+ *  The last entry has a GetParent() of null.
+ */
+class AyStar.Path
+{
+	_prev = null;
+	_tile = null;
+	_direction = null;
+	_cost = null;
+	_length = null;
+
+	constructor(old_path, new_tile, new_direction, cost_callback, cost_callback_param)
+	{
+		this._prev = old_path;
+		this._tile = new_tile;
+		this._direction = new_direction;
+		this._cost = cost_callback(old_path, new_tile, new_direction, cost_callback_param);
+		if (old_path == null) {
+			this._length = 0;
+		} else {
+			this._length = old_path.GetLength() + AIMap.DistanceManhattan(old_path.GetTile(), new_tile);
+		}
+	}
+
+	/**
+	 * Return the tile where this (partial-)path ends.
+	 */
+	function GetTile() { return this._tile; }
+
+	/**
+	 * Return the direction from which we entered the tile in this (partial-)path.
+	 */
+	function GetDirection() { return this._direction; }
+
+	/**
+	 * Return an instance of this class leading to the previous node.
+	 */
+	function GetParent() { return this._prev; }
+
+	/**
+	 * Return the cost of this (partial-)path from the beginning up to this node.
+	 */
+	function GetCost() { return this._cost; }
+
+	/**
+	 * Return the length (in tiles) of this path.
+	 */
+	function GetLength() { return this._length; }
+};
 
 function AyStar::InitializePath(sources, goals, ignored_tiles = [])
 {
@@ -202,57 +255,4 @@ function AyStar::_CleanPath()
 	this._closed = null;
 	this._open = null;
 	this._goals = null;
-}
-
-/**
- * The path of the AyStar algorithm.
- *  It is reversed, that is, the first entry is more close to the goal-nodes
- *  than his GetParent(). You can walk this list to find the whole path.
- *  The last entry has a GetParent() of null.
- */
-class AyStar.Path
-{
-	_prev = null;
-	_tile = null;
-	_direction = null;
-	_cost = null;
-	_length = null;
-
-	constructor(old_path, new_tile, new_direction, cost_callback, cost_callback_param)
-	{
-		this._prev = old_path;
-		this._tile = new_tile;
-		this._direction = new_direction;
-		this._cost = cost_callback(old_path, new_tile, new_direction, cost_callback_param);
-		if (old_path == null) {
-			this._length = 0;
-		} else {
-			this._length = old_path.GetLength() + AIMap.DistanceManhattan(old_path.GetTile(), new_tile);
-		}
-	};
-
-	/**
-	 * Return the tile where this (partial-)path ends.
-	 */
-	function GetTile() { return this._tile; }
-
-	/**
-	 * Return the direction from which we entered the tile in this (partial-)path.
-	 */
-	function GetDirection() { return this._direction; }
-
-	/**
-	 * Return an instance of this class leading to the previous node.
-	 */
-	function GetParent() { return this._prev; }
-
-	/**
-	 * Return the cost of this (partial-)path from the beginning up to this node.
-	 */
-	function GetCost() { return this._cost; }
-
-	/**
-	 * Return the length (in tiles) of this path.
-	 */
-	function GetLength() { return this._length; }
 }

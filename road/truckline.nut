@@ -25,6 +25,10 @@
  */
 class TruckLine extends RoadLine
 {
+	_ind_from = null;     ///< The IndustryID where we are transporting cargo from.
+	_ind_to = null;       ///< The IndustryID where we are transporting cargo to.
+	_valid = null;
+
 /* public: */
 
 	/**
@@ -79,12 +83,6 @@ class TruckLine extends RoadLine
 	 * @return True if and only if we need more money to complete the function.
 	 */
 	function CheckVehicles();
-
-/* private: */
-
-	_ind_from = null;     ///< The IndustryID where we are transporting cargo from.
-	_ind_to = null;       ///< The IndustryID where we are transporting cargo to.
-	_valid = null;
 };
 
 function TruckLine::GetIndustryFrom()
@@ -104,10 +102,10 @@ function TruckLine::CloseRoute()
 	if (!this._valid) return;
 	AILog.Warning("Closing down cargo route");
 	this.UpdateVehicleList();
-	::vehicles_to_sell.AddList(this._vehicle_list);
+	::main_instance.sell_vehicles.AddList(this._vehicle_list);
 	this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-	AdmiralAI.SendVehicleToSellToDepot();
+	::main_instance.SendVehicleToSellToDepot();
 	this._station_from.CloseTruckStation();
 	this._station_to.CloseTruckStation();
 	this._valid = false;
@@ -137,7 +135,7 @@ function TruckLine::BuildVehicles(num)
 		this._vehicle_list.KeepTop(abs(max_to_build));
 		foreach (v, dummy in this._vehicle_list) {
 			AIVehicle.SendVehicleToDepot(v);
-			::vehicles_to_sell.AddItem(v, 0);
+			::main_instance.sell_vehicles.AddItem(v, 0);
 			this._station_from.RemoveTrucks(1, this._distance, max_speed);
 			this._station_to.RemoveTrucks(1, this._distance, max_speed);
 		}
@@ -159,6 +157,7 @@ function TruckLine::BuildVehicles(num)
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 		}
@@ -190,7 +189,7 @@ function TruckLine::CheckVehicles()
 	foreach (v, profit in list) {
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
-		::vehicles_to_sell.AddItem(v, 0);
+		::main_instance.sell_vehicles.AddItem(v, 0);
 		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	}
@@ -211,7 +210,7 @@ function TruckLine::CheckVehicles()
 		local v = list.Begin();
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
-		::vehicles_to_sell.AddItem(v, 0);
+		::main_instance.sell_vehicles.AddItem(v, 0);
 		local max_speed = AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v));
 		this._station_from.RemoveTrucks(1, this._distance, max_speed);
 		this._station_to.RemoveTrucks(1, this._distance, max_speed);

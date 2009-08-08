@@ -109,7 +109,7 @@ function BusLine::BuildVehicles(num)
 		this._vehicle_list.KeepTop(abs(max_to_build));
 		foreach (v, dummy in this._vehicle_list) {
 			AIVehicle.SendVehicleToDepot(v);
-			::vehicles_to_sell.AddItem(v, 0);
+			::main_instance.sell_vehicles.AddItem(v, 0);
 			this._station_from.RemoveBusses(1, this._distance, max_speed);
 			this._station_to.RemoveBusses(1, this._distance, max_speed);
 		}
@@ -158,7 +158,7 @@ function BusLine::CheckVehicles()
 	foreach (v, profit in list) {
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
-		::vehicles_to_sell.AddItem(v, 0);
+		::main_instance.sell_vehicles.AddItem(v, 0);
 		local max_speed = AIEngine.GetMaxSpeed(this._engine_id);
 		this._station_from.RemoveBusses(1, this._distance, max_speed);
 		this._station_to.RemoveBusses(1, this._distance, max_speed);
