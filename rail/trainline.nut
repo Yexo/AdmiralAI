@@ -33,10 +33,12 @@ class TrainLine
 	 * @param station_from A StationManager that controls the station we are transporting cargo from.
 	 * @param ind_to The IndustryID we are transporting cargo to.
 	 * @param station_to A StationManager that controls the station we are transporting cargo to.
-	 * @param depot_tile A TileIndex of the depot tile.
+	 * @param depot_tiles An array with TileIndexes of the depot tiles.
 	 * @param cargo The CargoID we are transporting.
+	 * @param loaded True if the constructor is called from the Load() function.
+	 * @param platform_length The length of the shortest train platform.
 	 */
-	constructor(ind_from, station_from, ind_to, station_to, depot_tiles, cargo, loaded, platform_length) {
+	constructor(ind_from, station_from, ind_to, station_to, depot_tiles, cargo, loaded, platform_length, rail_type) {
 		this._ind_from = ind_from;
 		this._station_from = station_from;
 		this._ind_to = ind_to;
@@ -45,24 +47,37 @@ class TrainLine
 		this._cargo = cargo;
 		this._platform_length = platform_length;
 		this._valid = true;
+		this._rail_type = rail_type;
 		if (!loaded) {
 			this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_RAIL);
-			this.RenameGroup();
+			this._RenameGroup();
 			this.BuildVehicles(2);
 		}
 	}
 
 	/**
-	 * Get the IndustryID of the station this line was transporting cargo from.
+	 * Get the IndustryID of the industry this line is transporting cargo from.
 	 * @return The IndustryID.
 	 */
 	function GetIndustryFrom();
 
 	/**
-	 * Get the IndustryID of the station this line was transporting cargo to.
+	 * Get the StationManager of the station this line is transporting cargo from.
+	 * @return The Stationmanager.
+	 */
+	function GetStationFrom();
+
+	/**
+	 * Get the IndustryID of the industry this line is transporting cargo to.
 	 * @return The IndustryID.
 	 */
 	function GetIndustryTo();
+
+	/**
+	 * Get the StationManager of the station this line is transporting cargo to.
+	 * @return The Stationmanager.
+	 */
+	function GetStationTo();
 
 	/**
 	 * Close down this route. This function tries to sell all vehicles and closes
@@ -90,18 +105,63 @@ class TrainLine
 
 /* private: */
 
-	_ind_from = null;     ///< The IndustryID where we are transporting cargo from.
-	_ind_to = null;       ///< The IndustryID where we are transporting cargo to.
-	_valid = null;
-	_station_from = null; ///< The StationManager managing the first station.
-	_station_to = null;   ///< The StationManager managing the second station.
-	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
-	_depot_tiles = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
-	_cargo = null;        ///< The CargoID of the cargo we'll transport.
-	_engine_id = null;    ///< The EngineID of the vehicles on this route.
-	_wagon_engine_id = null;
-	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
-	_platform_length = null;
+	/**
+	 * Initiate autoreplace from one engine type to another.
+	 * @param old_vehicle_id The EngineID that is being replaced.
+	 * @param new_engine_id The EngineID we will replace with.
+	 */
+	function _AutoReplace(old_vehicle_id, new_engine_id)
+
+	/**
+	 * Update this._vehicle_list to contain all vehicles belonging to this route.
+	 * Call this before using this._vehicle_list, because that list could
+	 * otherwise have invalid vehicles or vehicles that are being sold.
+	 */
+	function _UpdateVehicleList()
+
+	/**
+	 * Assign a value to an engine.
+	 * @param engine_id The EngineID to valuate.
+	 * @return A value for that engine.
+	 */
+	function _SortEngineList(engine_id)
+
+	/**
+	 * Assign a value to a wagon.
+	 * @param engine_id The EngineID of a wagon to valuate.
+	 * @return A value for that wagon.
+	 */
+	function _SortEngineWagonList(engine_id)
+
+	/**
+	 * Update this._engine_id and this._wagon_engine_id and initiate autoreplace
+	 * if necessary.
+	 */
+	function _FindEngineID()
+
+	/**
+	 * Give the group of this route a proper name.
+	 */
+	function _RenameGroup();
+
+	/*
+	 * Check wheher a better compatible railtype is available and update if so.
+	 */
+	function _UpdateRailType();
+
+	_ind_from = null;        ///< The IndustryID where we are transporting cargo from.
+	_ind_to = null;          ///< The IndustryID where we are transporting cargo to.
+	_valid = null;           ///< True as long as the route is ok. Set to false when the route is closed down.
+	_station_from = null;    ///< The StationManager managing the first station.
+	_station_to = null;      ///< The StationManager managing the second station.
+	_vehicle_list = null;    ///< An AIList() containing all vehicles on this route.
+	_depot_tiles = null;     ///< An array with TileIndexes indicating the depots that are used by this route (both to build new vehicles and to service existing ones).
+	_cargo = null;           ///< The CargoID of the cargo we'll transport.
+	_engine_id = null;       ///< The EngineID of the engine of the trains on this route.
+	_wagon_engine_id = null; ///< The EngineID of the wagons of the trains on this route.
+	_group_id = null;        ///< The GroupID of the group all vehicles from this route are in.
+	_platform_length = null; ///< The length of the shortest platform of both stations.
+	_rail_type = null;       ///< The railtype of the rails from this route.
 };
 
 function TrainLine::GetIndustryFrom()
@@ -113,14 +173,14 @@ function TrainLine::GetIndustryFrom()
 function TrainLine::GetIndustryTo()
 {
 	if (!this._valid) return -1;
-	return this._ind_to;
+	return this._ind_to;_depot_tiles
 }
 
 function TrainLine::CloseRoute()
 {
 	if (!this._valid) return;
 	AILog.Warning("Closing down train route");
-	this.UpdateVehicleList();
+	this._UpdateVehicleList();
 	::vehicles_to_sell.AddList(this._vehicle_list);
 	AdmiralAI.SendVehicleToSellToDepot();
 	this._valid = false;
@@ -130,11 +190,11 @@ function TrainLine::BuildVehicles(num)
 {
 	AILog.Info("TrainLine.BuildVehicles(" + num + ")");
 	if (!this._valid) return true;
-	this.UpdateVehicleList();
+	this._UpdateVehicleList();
 	this._FindEngineID();
 	if (this._engine_id == null || this._wagon_engine_id == null) {
 		AILog.Warning("No vehicles id found");
-		return false;
+		return true;
 	}
 	local max_veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
 
@@ -152,10 +212,10 @@ function TrainLine::BuildVehicles(num)
 			/* Check if the wagon was already added to the engine. */
 			if (AIVehicle.GetLength(v) == last_length) {
 				if (!AIVehicle.IsValidVehicle(wagon_id)) {
-					AIVehicle.SellVehicle(v);
-					if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
+					local cash_shortage = AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH;
 					AILog.Warning("Error building train wagon: " + AIError.GetLastErrorString());
-					return true;
+					AIVehicle.SellVehicle(v);
+					return !cash_shortage;
 				}
 				AIVehicle.MoveWagon(wagon_id, 0, false, v, 0);
 			}
@@ -163,8 +223,9 @@ function TrainLine::BuildVehicles(num)
 		}
 		AIVehicle.SellWagon(v, 1, false);
 		if (!AIVehicle.RefitVehicle(v, this._cargo)) {
+			local cash_shortage = AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH;
 			AIVehicle.SellVehicle(v);
-			return false;
+			return !cash_shortage;
 		}
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
@@ -185,13 +246,138 @@ function TrainLine::BuildVehicles(num)
 	return true;
 }
 
+function TrainLine::_RailTypeCompatible(new_type, orig_type)
+{
+	return AIRail.TrainCanRunOnRail(orig_type, new_type);
+}
+
+function TrainLine::ConvertRoute(station_a, station_b, return_path, new_type)
+{
+	local pf = RailFollower();
+	local sources = [];
+	local goals = [];
+	local platform_length = this._platform_length;
+
+	local tile = AIStation.GetLocation(station_a);
+	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
+		local tile2 = tile + AIMap.GetTileIndex(0, -1);
+		local tile3 = tile + AIMap.GetTileIndex(0, platform_length);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NW_SW) != 0) {
+			sources.push([tile + AIMap.GetTileIndex(return_path, -3), tile + AIMap.GetTileIndex(return_path, -2)]);
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NW_SW) != 0) {
+			sources.push([tile + AIMap.GetTileIndex(return_path, platform_length + 2), tile + AIMap.GetTileIndex(return_path, platform_length + 1)]);
+		}
+	} else {
+		local tile2 = tile + AIMap.GetTileIndex(-1, 0);
+		local tile3 = tile + AIMap.GetTileIndex(platform_length, 0);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NE_SW) != 0) {
+			sources.push([tile + AIMap.GetTileIndex(-3, return_path), tile + AIMap.GetTileIndex(-2, return_path)]);
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NE_SW) != 0) {
+			sources.push([tile + AIMap.GetTileIndex(platform_length + 2, return_path), tile + AIMap.GetTileIndex(platform_length + 1, return_path)]);
+		}
+	}
+	tile = AIStation.GetLocation(station_b);
+	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
+		local tile2 = tile + AIMap.GetTileIndex(0, -1);
+		local tile3 = tile + AIMap.GetTileIndex(0, platform_length);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NW_SW) != 0) {
+			goals.push([tile + AIMap.GetTileIndex(return_path, -3), tile + AIMap.GetTileIndex(return_path, -2)]);
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NW_SW) != 0) {
+			goals.push([tile + AIMap.GetTileIndex(return_path, platform_length + 2), tile + AIMap.GetTileIndex(return_path, platform_length + 1)]);
+		}
+	} else {
+		local tile2 = tile + AIMap.GetTileIndex(-1, 0);
+		local tile3 = tile + AIMap.GetTileIndex(platform_length, 0);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NE_SW) != 0) {
+			goals.push([tile + AIMap.GetTileIndex(-3, return_path), tile + AIMap.GetTileIndex(-2, return_path)]);
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NE_SW) != 0) {
+			goals.push([tile + AIMap.GetTileIndex(platform_length + 2, return_path), tile + AIMap.GetTileIndex(platform_length + 1, return_path)]);
+		}
+	}
+	if (sources.len() == 0) return -7;
+	if (goals.len() == 0) return -8;
+	if (return_path == 0) {
+		pf.InitializePath(sources, goals, [], new_type);
+	} else {
+		pf.InitializePath(goals, sources, [], new_type);
+	}
+	local path = pf.FindPath(200000);
+	if (path == null) {
+		foreach (t in sources) {
+			AISign.BuildSign(t[1], "source");
+		}
+		foreach (t in goals) {
+			AISign.BuildSign(t[1], "goal");
+		}
+		return -3;
+	}
+
+	while (path != null) {
+		local tile = path.GetTile();
+		if (!AITile.HasTransportType(tile, AITile.TRANSPORT_RAIL)) return -2;
+		if (AIRail.GetRailType(tile) == new_type || AIRail.TrainHasPowerOnRail(new_type, AIRail.GetRailType(tile))) {
+			path = path.GetParent();
+			continue;
+		}
+		if (!AIRail.TrainHasPowerOnRail(AIRail.GetRailType(tile), new_type)) return -2;
+		if (!AIRail.ConvertRailType(tile, tile, new_type)) {
+			if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -1;
+		}
+		path = path.GetParent();
+	}
+	return 0;
+}
+
+/*
+ * return:
+ * 0: all ok.
+ * -1: need more money.
+ * < -1: other error.
+ */
+function TrainLine::_UpdateRailType()
+{
+	local rail_type_list = AIRailTypeList();
+	rail_type_list.Valuate(TrainLine._RailTypeCompatible, this._rail_type);
+	rail_type_list.KeepValue(1);
+	rail_type_list.Valuate(TrainManager.RailTypeValuator, this._cargo);
+	rail_type_list.RemoveValue(-1);
+	if (rail_type_list.Count() == 0) return -4;
+	rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	local new_type = rail_type_list.Begin();
+	if (this._rail_type == new_type) return 0;
+	if (!this._station_from.ConvertRailType(new_type)) return -5;
+	if (!this._station_to.ConvertRailType(new_type)) return -5;
+
+	local station_a = this._station_from.GetStationID();
+	local station_b = this._station_to.GetStationID();
+
+	local ret = this.ConvertRoute(station_a, station_b, 0, new_type);
+	if (ret != 0) return ret;
+	ret = this.ConvertRoute(station_a, station_b, 1, new_type);
+	if (ret != 0) return ret;
+
+	foreach (tile in this._depot_tiles) {
+		if (tile == null) continue;
+		if (AIRail.GetRailType(tile) == new_type) continue;
+		if (AIRail.TrainHasPowerOnRail(new_type, AIRail.GetRailType(tile))) continue;
+		if (!AIRail.TrainHasPowerOnRail(AIRail.GetRailType(tile), new_type)) return -2;
+		if (!AIRail.ConvertRailType(tile, tile, new_type)) {
+			if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -1;
+		}
+	}
+
+	this._rail_type = new_type;
+	return 0;
+}
+
 function TrainLine::CheckVehicles()
 {
-	if (!this._valid) return;
-	this.UpdateVehicleList();
+	if (!this._valid) return false;
+	if (this._UpdateRailType() == -1) return true;
+	this._UpdateVehicleList();
 	if (!AIIndustry.IsValidIndustry(this._ind_from) || (this._ind_to != null && !AIIndustry.IsValidIndustry(this._ind_to))) {
 		this.CloseRoute();
-		return;
+		return false;
 	}
 
 	local list = AIList();
@@ -201,17 +387,36 @@ function TrainLine::CheckVehicles()
 	list.Valuate(AIVehicle.GetProfitLastYear);
 	list.KeepBelowValue(1000);
 
-	foreach (v, profit in list) {
-		this._vehicle_list.RemoveItem(v);
-		AIVehicle.SendVehicleToDepot(v);
-		::vehicles_to_sell.AddItem(v, 0);
+	if (list.Count() > 0 ) {
+		::vehicles_to_sell.AddList(list);
+		AdmiralAI.SendVehicleToSellToDepot();
+		/* Only build new vehicles if we didn't sell any. */
+		return true;
 	}
 
 	foreach (v, dummy in this._vehicle_list) {
 		if (AIVehicle.GetState(v) == AIVehicle.VS_STOPPED) AIVehicle.StartStopVehicle(v);
 	}
 
-	/* Only build new vehicles if we didn't sell any. */
+	list = AIList();
+	list.AddList(this._vehicle_list);
+	foreach (v, d in list) {
+		list.SetValue(v, AIOrder.GetOrderDestination(v, AIOrder.ResolveOrderPosition(v, AIOrder.CURRENT_ORDER)));
+	}
+	list.KeepValue(AIStation.GetLocation(this._station_from.GetStationID()));
+	list.Valuate(Utils_Tile.VehicleManhattanDistanceToTile, AIStation.GetLocation(this._station_from.GetStationID()));
+	list.KeepBelowValue(15);
+	if (list.Count() >= 3) {
+		AILog.Warning("Detected jam near " + AIStation.GetName(this._station_from.GetStationID()));
+		list.Valuate(AIVehicle.GetCargoLoad, this._cargo);
+		list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		local v = list.Begin();
+		::vehicles_to_sell.AddItem(v, 0);
+		AdmiralAI.SendVehicleToSellToDepot();
+		/* Don't buy a new train, we just sold one. */
+		return true;
+	}
+
 	this._FindEngineID();
 	if (this._engine_id != null && this._wagon_engine_id != null) {
 		if (this._vehicle_list.Count() < 2) return !this.BuildVehicles(2 - this._vehicle_list.Count());
@@ -242,7 +447,7 @@ function TrainLine::_AutoReplace(old_vehicle_id, new_engine_id)
 }
 
 
-function TrainLine::RenameGroup()
+function TrainLine::_RenameGroup()
 {
 	AIGroup.SetName(this._group_id, AICargo.GetCargoLabel(this._cargo) + ": " + AIStation.GetName(this._station_from.GetStationID()) + " - " + AIStation.GetName(this._station_to.GetStationID()));
 }
@@ -257,7 +462,7 @@ function TrainLine::GetStationTo()
 	return this._station_to;
 }
 
-function TrainLine::UpdateVehicleList()
+function TrainLine::_UpdateVehicleList()
 {
 	this._vehicle_list = AIList();
 	this._vehicle_list.AddList(AIVehicleList_Station(this._station_from.GetStationID()));
@@ -276,12 +481,14 @@ function TrainLine::_SortEngineWagonList(engine_id)
 
 function TrainLine::_FindEngineID()
 {
-	this.UpdateVehicleList();
+	this._UpdateVehicleList();
 	local list = AIEngineList(AIVehicle.VEHICLE_RAIL);
-	list.Valuate(AIEngine.HasPowerOnRail, AIRail.GetCurrentRailType());
+	list.Valuate(AIEngine.HasPowerOnRail, this._rail_type);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.IsWagon);
 	list.KeepValue(0);
+	list.Valuate(AIEngine.CanPullCargo, this._cargo);
+	list.KeepValue(1);
 	list.Valuate(this._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	local new_engine_id = null;
@@ -294,7 +501,7 @@ function TrainLine::_FindEngineID()
 	this._engine_id = new_engine_id;
 
 	local list = AIEngineList(AIVehicle.VEHICLE_RAIL);
-	list.Valuate(AIEngine.CanRunOnRail, AIRail.GetCurrentRailType());
+	list.Valuate(AIEngine.CanRunOnRail, this._rail_type);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.IsWagon);
 	list.KeepValue(1);

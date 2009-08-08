@@ -165,7 +165,7 @@ function AyStar::FindPath(iterations)
 					foreach (node in neighbours) {
 						if (node[0] == goal[1]) {
 							this._CleanPath();
-							AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+							if (num_iterations > 5000) AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
 							return path;
 						}
 					}
@@ -174,7 +174,7 @@ function AyStar::FindPath(iterations)
 			} else {
 				if (cur_tile == goal) {
 					this._CleanPath();
-					AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+					if (num_iterations > 5000) AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
 					return path;
 				}
 			}

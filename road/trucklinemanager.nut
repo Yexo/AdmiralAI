@@ -173,7 +173,7 @@ function TruckLineManager::Load(data)
 		foreach (ind, manager_array in data.rawget("pickup_stations")) {
 			local new_man_array = [];
 			foreach (man_info in manager_array) {
-				new_man_array.push([StationManager(man_info[0], this), man_info[1]]);
+				new_man_array.push([StationManager(man_info[0]), man_info[1]]);
 			}
 			this._ind_to_pickup_stations.rawset(ind, new_man_array);
 		}
@@ -181,7 +181,7 @@ function TruckLineManager::Load(data)
 
 	if (data.rawin("drop_stations")) {
 		foreach (ind, station_id in data.rawget("drop_stations")) {
-			this._ind_to_drop_station.rawset(ind, StationManager(station_id, this));
+			this._ind_to_drop_station.rawset(ind, StationManager(station_id));
 		}
 	}
 
@@ -265,7 +265,7 @@ function TruckLineManager::ClosedStation(station)
 function TruckLineManager::CheckRoutes()
 {
 	foreach (route in this._routes) {
-		route.CheckVehicles();
+		if (route.CheckVehicles()) return true;
 	}
 	return false;
 }
@@ -329,9 +329,9 @@ function TruckLineManager::BuildNewLine()
 			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local list_from = AITileList();
-				AdmiralAI.AddSquare(list_from, AIIndustry.GetLocation(ind_from), 6);
+				Utils_Tile.AddSquare(list_from, AIIndustry.GetLocation(ind_from), 6);
 				local list_to = AITileList();
-				AdmiralAI.AddSquare(list_to, AIIndustry.GetLocation(ind_to), 6);
+				Utils_Tile.AddSquare(list_to, AIIndustry.GetLocation(ind_to), 6);
 				local array_from = [];
 				foreach (tile, d in list_from) array_from.push(tile);
 				local array_to = [];
@@ -402,7 +402,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 {
 	AILog.Info("Goods station near " + AITown.GetName(town));
 	local tile_list = AITileList();
-	AdmiralAI.AddSquare(tile_list, AITown.GetLocation(town), 10);
+	Utils_Tile.AddSquare(tile_list, AITown.GetLocation(town), 10);
 	tile_list.Valuate(AITile.GetCargoAcceptance, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_TRUCK_STOP));
 	tile_list.KeepAboveValue(12); /* Tiles with an acceptance lower than 8 don't accept the cargo. */
 
@@ -413,7 +413,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 
 	tile_list.Valuate(AITile.GetOwner);
 	tile_list.RemoveBetweenValue(AICompany.FIRST_COMPANY - 1, AICompany.LAST_COMPANY + 1);
-	tile_list.Valuate(AdmiralAI.GetRealHeight);
+	tile_list.Valuate(Utils_Tile.GetRealHeight);
 	tile_list.KeepAboveValue(0);
 	tile_list.Valuate(AIBase.RandItem);
 	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
@@ -430,22 +430,22 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 				if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) {
 					{
 						local exec = AIExecMode();
-						if (AdmiralAI.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
+						if (Utils_Tile.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 				}
 				if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			}
-			if (AdmiralAI.GetRealHeight(tile + offset) > AdmiralAI.GetRealHeight(tile)) {
+			if (Utils_Tile.GetRealHeight(tile + offset) > Utils_Tile.GetRealHeight(tile)) {
 				if (!AITile.LowerTile(tile + offset, AITile.GetSlope(tile + offset))) continue;
-			} else if (AdmiralAI.GetRealHeight(tile + offset) < AdmiralAI.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
+			} else if (Utils_Tile.GetRealHeight(tile + offset) < Utils_Tile.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
 				if (!AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)))) continue;
 			}
 			/* Build both the road and the station. If building fails, try another location.*/
 			if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 			local station_id = AIStation.GetStationID(tile);
-			local manager = StationManager(station_id, this);
+			local manager = StationManager(station_id);
 			manager.SetCargoDrop(true);
 			return manager;
 		}
@@ -485,7 +485,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 	 * and we can't delete tiles belonging to the competitors. */
 	tile_list.Valuate(AITile.GetOwner);
 	tile_list.RemoveBetweenValue(AICompany.FIRST_COMPANY - 1, AICompany.LAST_COMPANY + 1);
-	tile_list.Valuate(AdmiralAI.GetRealHeight);
+	tile_list.Valuate(Utils_Tile.GetRealHeight);
 	tile_list.KeepAboveValue(0);
 	if (!producing) {
 		tile_list.Valuate(AITile.GetCargoAcceptance, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_TRUCK_STOP));
@@ -508,15 +508,15 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 				if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) {
 					{
 						local exec = AIExecMode();
-						if (AdmiralAI.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
+						if (Utils_Tile.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 				}
 				if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			}
-			if (AdmiralAI.GetRealHeight(tile + offset) > AdmiralAI.GetRealHeight(tile)) {
+			if (Utils_Tile.GetRealHeight(tile + offset) > Utils_Tile.GetRealHeight(tile)) {
 				if (!AITile.LowerTile(tile + offset, AITile.GetSlope(tile + offset))) continue;
-			} else if (AdmiralAI.GetRealHeight(tile + offset) < AdmiralAI.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
+			} else if (Utils_Tile.GetRealHeight(tile + offset) < Utils_Tile.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
 				if (!AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)))) continue;
 			}
 			if (AITile.GetSlope(tile) != AITile.SLOPE_FLAT) AITile.RaiseTile(tile, AITile.GetComplementSlope(AITile.GetSlope(tile)));
@@ -524,7 +524,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 			if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 			local station_id = AIStation.GetStationID(tile);
-			local manager = StationManager(station_id, this);
+			local manager = StationManager(station_id);
 			manager.SetCargoDrop(!producing);
 			if (producing) {
 				if (!this._ind_to_pickup_stations.rawin(ind)) {

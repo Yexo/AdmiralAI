@@ -22,7 +22,7 @@
 /**
  * A Rail Pathfinder.
  */
-class Rail
+class RailPF
 {
 	_aystar_class = AyStar;
 	_max_cost = null;              ///< The maximum cost for a route.
@@ -94,7 +94,7 @@ class Rail
 	function FindPath(iterations);
 }
 
-class Rail.Cost
+class RailPF.Cost
 {
 	_main = null;
 
@@ -144,7 +144,7 @@ class Rail.Cost
 	}
 }
 
-function Rail::FindPath(iterations)
+function RailPF::FindPath(iterations)
 {
 	local test_mode = AITestMode();
 	local ret = this._pathfinder.FindPath(iterations);
@@ -159,7 +159,7 @@ function Rail::FindPath(iterations)
 	return ret;
 }
 
-function Rail::_GetBridgeNumSlopes(end_a, end_b)
+function RailPF::_GetBridgeNumSlopes(end_a, end_b)
 {
 	local slopes = 0;
 	local direction = (end_b - end_a) / AIMap.DistanceManhattan(end_a, end_b);
@@ -180,12 +180,12 @@ function Rail::_GetBridgeNumSlopes(end_a, end_b)
 	return slopes;
 }
 
-function Rail::_nonzero(a, b)
+function RailPF::_nonzero(a, b)
 {
 	return a != 0 ? a : b;
 }
 
-function Rail::_Cost(path, new_tile, new_direction, self)
+function RailPF::_Cost(path, new_tile, new_direction, self)
 {
 	/* path == null means this is the first node of a path, so the cost is 0. */
 	if (path == null) return 0;
@@ -255,7 +255,7 @@ function Rail::_Cost(path, new_tile, new_direction, self)
 	return path.GetCost() + cost;
 }
 
-function Rail::_Estimate(cur_tile, cur_direction, goal_tiles, self)
+function RailPF::_Estimate(cur_tile, cur_direction, goal_tiles, self)
 {
 	local min_cost = self._max_cost;
 	/* As estimate we multiply the lowest possible cost for a single tile with
@@ -268,7 +268,7 @@ function Rail::_Estimate(cur_tile, cur_direction, goal_tiles, self)
 	return min_cost;
 }
 
-function Rail::_Neighbours(path, cur_node, self)
+function RailPF::_Neighbours(path, cur_node, self)
 {
 	/* self._max_cost is the maximum path cost, if we go over it, the path isn't valid. */
 	if (path.GetCost() >= self._max_cost) return [];
@@ -277,10 +277,12 @@ function Rail::_Neighbours(path, cur_node, self)
 	                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0)];
 	local tiles = [];
 	if (AITile.HasTransportType(cur_node, AITile.TRANSPORT_RAIL)) {
-		//return [];
+		/* Only use track we own. */
 		if (!AICompany.IsMine(AITile.GetOwner(cur_node))) return [];
-		//TODO: this should be something liek AIEngine.HasPowerOnRail, but for track types.
-		if (AIRail.GetRailType(cur_node) != AIRail.GetCurrentRailType()) return [];
+
+		/* If the existing track type is incompatible this tile is unusable. */
+		if (!AIRail.TrainHasPowerOnRail(AIRail.GetRailType(cur_node), AIRail.GetCurrentRailType())) return [];
+
 		local path_check = path;
 		local can_split = path_check == null;
 		local i = 0;
@@ -365,12 +367,12 @@ function Rail::_Neighbours(path, cur_node, self)
 	return tiles;
 }
 
-function Rail::_CheckDirection(tile, existing_direction, new_direction, self)
+function RailPF::_CheckDirection(tile, existing_direction, new_direction, self)
 {
 	return false;
 }
 
-function Rail::_dir(from, to)
+function RailPF::_dir(from, to)
 {
 	if (from - to == 1) return 0;
 	if (from - to == -1) return 1;
@@ -379,7 +381,7 @@ function Rail::_dir(from, to)
 	throw("Shouldn't come here in _dir");
 }
 
-function Rail::_GetDirection(pre_from, from, to, is_bridge)
+function RailPF::_GetDirection(pre_from, from, to, is_bridge)
 {
 	if (is_bridge) {
 		if (from - to == 1) return 1;
@@ -396,7 +398,7 @@ function Rail::_GetDirection(pre_from, from, to, is_bridge)
  *  for performance reasons. Tunnels will only be build if no terraforming
  *  is needed on both ends.
  */
-function Rail::_GetTunnelsBridges(last_node, cur_node, bridge_dir)
+function RailPF::_GetTunnelsBridges(last_node, cur_node, bridge_dir)
 {
 	local slope = AITile.GetSlope(cur_node);
 	if (slope == AITile.SLOPE_FLAT && AITile.IsBuildable(cur_node + (cur_node - last_node))) return [];
@@ -423,7 +425,7 @@ function Rail::_GetTunnelsBridges(last_node, cur_node, bridge_dir)
 	return tiles;
 }
 
-function Rail::_IsSlopedRail(start, middle, end)
+function RailPF::_IsSlopedRail(start, middle, end)
 {
 	local NW = 0; // Set to true if we want to build a rail to / from the north-west
 	local NE = 0; // Set to true if we want to build a rail to / from the north-east

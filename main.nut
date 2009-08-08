@@ -21,7 +21,11 @@
 
 import("queue.fibonacci_heap", "FibonacciHeap", 1);
 
-require("utils.nut");
+require("utils/general.nut");
+require("utils/array.nut");
+require("utils/tile.nut");
+require("utils/valuator.nut");
+
 require("stationmanager.nut");
 require("townmanager.nut");
 require("aystar.nut");
@@ -38,7 +42,7 @@ require("road/buslinemanager.nut");
 require("road/trucklinemanager.nut");
 
 require("rail/railpathfinder.nut");
-RailPF <- Rail;
+require("rail/railfollower.nut");
 require("rail/trainmanager.nut");
 require("rail/railroutebuilder.nut");
 require("rail/trainline.nut");
@@ -76,9 +80,38 @@ class AdmiralAI extends AIController
 /* public: */
 
 	constructor() {
+		local cargo_list = AICargoList();
+		cargo_list.Valuate(AICargo.HasCargoClass, AICargo.CC_PASSENGERS);
+		if (cargo_list.Count() == 0) {
+			throw("No passenger cargo found.");
+		}
+		if (cargo_list.Count() > 1) {
+			local town_list = AITownList();
+			town_list.Valuate(AITown.GetPopulation);
+			town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+			local best_cargo = null;
+			local best_cargo_acceptance = 0;
+			foreach (cargo, dummy in cargo_list) {
+				local acceptance = AITile.GetCargoAcceptance(AITown.GetLocation(town_list.Begin()), cargo, 1, 1, 5);
+				if (acceptance > best_cargo_acceptance) {
+					best_cargo_acceptance = acceptance;
+					best_cargo = cargo;
+				}
+			}
+			this._passenger_cargo_id = best_cargo;
+		} else {
+			this._passenger_cargo_id = cargo_list.Begin();
+		}
+
+		this._town_managers = {};
+		local town_list = AITownList();
+		foreach (town, dummy in town_list) {
+			this._town_managers.rawset(town, TownManager(town));
+		}
+
 		this._truck_manager = TruckLineManager();
 		this._bus_manager = BusLineManager();
-		this._aircraft_manager = AircraftManager(this._bus_manager.GetTownManagerTable());
+		this._aircraft_manager = AircraftManager();
 		this._train_manager = TrainManager();
 		this._pending_events = [];
 
@@ -92,6 +125,7 @@ class AdmiralAI extends AIController
 		this.last_cash_output = AIDate.GetCurrentDate();
 		this.last_improve_buslines_date = 0;
 		this.need_vehicle_check = false;
+		this.sell_stations = [];
 	}
 
 	/**
@@ -116,23 +150,6 @@ class AdmiralAI extends AIController
 	function GetEvents();
 
 	/**
-	 * Try to get a specifeid amount of money.
-	 * @param amount The amount of money we want.
-	 * @note This function doesn't return anything. You'll have to check yourself if you have got enough.
-	 */
-	static function GetMoney(amount);
-
-	/**
-	 * Get the real tile height of a tile. The real tile hight is the base tile hight plus 1 if
-	 *   the tile is a non-flat tile.
-	 * @param tile The tile to get the height for.
-	 * @return The height of the tile.
-	 * @note The base tile hight is not the same as AITile.GetHeight. The value returned by
-	 *   AITile.GetHeight is one too high in case the north corner is raised.
-	 */
-	static function GetRealHeight(tile);
-
-	/**
 	 * Try to find a connected depot in the neighbourhood of a tile.
 	 * @param roadtile The tile to start searching.
 	 * @return Either a TileIndex of a depot or null.
@@ -149,27 +166,6 @@ class AdmiralAI extends AIController
 	static function BuildDepot(roadtile);
 
 	/**
-	 * Add a square around a tile to an AITileList.
-	 * @param tile_list The AITileList to add the tiles to.
-	 * @param center_tile The center where the square should be created around.
-	 * @param radius Half of the diameter of the square.
-	 * @note The square ranges from (centertile - (radius, radius)) to (centertile + (radius, radius)).
-	 */
-	static function AddSquare(tile_list, center_tile, radius);
-
-	/**
-	 * A safe implementation of AITileList.AddRectangle. In effect if center_tile - (x_min, y_min)
-	 * and centertile + (x_plus, y_plus) are still valid. Only valid tiles are added.
-	 * @param tile_list The AITileList to add the tiles to.
-	 * @param center_tile The center of the rectangle.
-	 * @param x_min The amount of tiles to the north-east, relative to center_tile.
-	 * @param y_min The amount of tiles to the north-west, relative to center_tile.
-	 * @param x_plus The amount of tiles to the south-west, relative to center_tile.
-	 * @param y_plus The amount of tiles to the south-east, relative to center_tile.
-	 */
-	static function AddRectangleSafe(tile_list, center_tile, x_min, y_min, x_plus, y_plus);
-
-	/**
 	 * Handle all pending events. Events are stored internal in the _pending_events
 	 *  array as [AIEventType, value] pair. The value that is saved depends on the
 	 *  events. For example, for AI_ET_INDUSTRY_CLOSE the IndustryID is saved in value.
@@ -183,12 +179,6 @@ class AdmiralAI extends AIController
 	static function SendVehicleToSellToDepot();
 
 	/**
-	 * A valuator that always returns 0.
-	 * @param item unused.
-	 */
-	static function NulValuator(item);
-
-	/**
 	 * The mainloop.
 	 * @note This is called by OpenTTD, no need to call from within the AI.
 	 */
@@ -196,6 +186,8 @@ class AdmiralAI extends AIController
 
 /* private: */
 
+	_passenger_cargo_id = null;        ///< The CargoID of the main passenger cargo.
+	_town_managers = null;             ///< A table mapping TownID to TownManager.
 	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
 	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
 	_aircraft_manager = null; ///< The AircraftManager managing all air routes.
@@ -206,6 +198,7 @@ class AdmiralAI extends AIController
 	last_cash_output = null;
 	last_improve_buslines_date = null;
 	need_vehicle_check = null;
+	sell_stations = null;
 };
 
 function AdmiralAI::Save()
@@ -278,26 +271,6 @@ function AdmiralAI::GetEvents()
 	}
 }
 
-function AdmiralAI::GetMoney(amount)
-{
-	local bank = AICompany.GetBankBalance(AICompany.MY_COMPANY);
-	local loan = AICompany.GetLoanAmount();
-	local maxloan = AICompany.GetMaxLoanAmount();
-	if (bank > amount) {
-		if (loan > 0) AICompany.SetMinimumLoanAmount(max(loan - (bank - amount) + 10000, 0));
-	} else {
-		AICompany.SetMinimumLoanAmount(min(maxloan, loan + amount - bank + 10000));
-	}
-}
-
-function AdmiralAI::GetRealHeight(tile)
-{
-	local height = AITile.GetHeight(tile);
-	if (AITile.GetSlope(tile) & AITile.SLOPE_N) height--;
-	if (AITile.GetSlope(tile) != AITile.SLOPE_FLAT) height++;
-	return height;
-}
-
 function AdmiralAI::ScanForDepot(roadtile)
 {
 	local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),
@@ -356,8 +329,8 @@ function AdmiralAI::BuildDepot(roadtile)
 			if (AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) continue;
 			if (AIRoad.IsRoadTile(cur_tile + offset)) continue;
 			if (!AITile.DemolishTile(cur_tile + offset)) continue;
-			local h = AdmiralAI.GetRealHeight(cur_tile);
-			local h2 = AdmiralAI.GetRealHeight(cur_tile + offset);
+			local h = Utils_Tile.GetRealHeight(cur_tile);
+			local h2 = Utils_Tile.GetRealHeight(cur_tile + offset);
 			if (h2 > h) AITile.LowerTile(cur_tile + offset, AITile.GetSlope(cur_tile + offset));
 			if (h > h2) AITile.RaiseTile(cur_tile + offset, AITile.GetComplementSlope(AITile.GetSlope(cur_tile + offset)));
 			if (!AIRoad.BuildRoad(cur_tile + offset, cur_tile)) continue;
@@ -367,29 +340,6 @@ function AdmiralAI::BuildDepot(roadtile)
 	}
 	AILog.Error("Should never come here, unable to build depot!");
 	return null;
-}
-
-function AdmiralAI::AddSquare(tile_list, center_tile, radius)
-{
-	AdmiralAI.AddRectangleSafe(tile_list, center_tile, radius, radius, radius, radius);
-}
-
-function AdmiralAI::AddRectangleSafe(tile_list, center_tile, x_min, y_min, x_plus, y_plus)
-{
-	local tile_x = AIMap.GetTileX(center_tile);
-	local tile_y = AIMap.GetTileY(center_tile);
-	local tile_from = AIMap.GetTileIndex(max(1, tile_x - x_min), max(1, tile_y - y_min));
-	local tile_to = AIMap.GetTileIndex(min(AIMap.GetMapSizeX() - 2, tile_x + x_plus), min(AIMap.GetMapSizeY() - 2, tile_y + y_plus));
-	tile_list.AddRectangle(tile_from, tile_to);
-}
-
-function AdmiralAI::RemoveRectangleSafe(tile_list, center_tile, x_min, y_min, x_plus, y_plus)
-{
-	local tile_x = AIMap.GetTileX(center_tile);
-	local tile_y = AIMap.GetTileY(center_tile);
-	local tile_from = AIMap.GetTileIndex(max(1, tile_x - x_min), max(1, tile_y - y_min));
-	local tile_to = AIMap.GetTileIndex(min(AIMap.GetMapSizeX() - 2, tile_x + x_plus), min(AIMap.GetMapSizeY() - 2, tile_y + y_plus));
-	tile_list.RemoveRectangle(tile_from, tile_to);
 }
 
 function AdmiralAI::HandleEvents()
@@ -422,7 +372,23 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	::vehicles_to_sell.Valuate(AIVehicle.IsValidVehicle);
 	::vehicles_to_sell.KeepValue(1);
 	foreach (vehicle, dummy in ::vehicles_to_sell) {
-		if (!AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER))) {
+		local tile = AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER);
+		local dest_is_depot = false;
+		switch (AIVehicle.GetVehicleType(vehicle)) {
+			case AIVehicle.VEHICLE_RAIL:
+				dest_is_depot = AIRail.IsRailDepotTile(tile);
+				break;
+			case AIVehicle.VEHICLE_ROAD:
+				dest_is_depot = AIRoad.IsRoadDepotTile(tile);
+				break;
+			case AIVehicle.VEHICLE_WATER:
+				dest_is_depot = AIMarine.IsWaterDepotTile(tile);
+				break;
+			case AIVehicle.VEHICLE_AIR:
+				dest_is_depot = AIAirport.IsHangarTile(tile);
+				break;
+		}
+		if (!dest_is_depot) {
 			if (!AIVehicle.SendVehicleToDepot(vehicle)) {
 				AIVehicle.ReverseVehicle(vehicle);
 				AIController.Sleep(50);
@@ -432,20 +398,10 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	}
 }
 
-function AdmiralAI::NulValuator(item)
-{
-	return 0;
-}
-
-function AdmiralAI::ItemValuator(item)
-{
-	return item;
-}
-
 function AdmiralAI::TransportCargo(cargo, ind)
 {
-	main_instance._truck_manager.TransportCargo(cargo, ind);
-	main_instance._train_manager.TransportCargo(cargo, ind);
+	::main_instance._truck_manager.TransportCargo(cargo, ind);
+	::main_instance._train_manager.TransportCargo(cargo, ind);
 }
 
 function AdmiralAI::DoMaintenance()
@@ -459,12 +415,12 @@ function AdmiralAI::DoMaintenance()
 		AILog.Info("Cash - loan: " + AICompany.GetBankBalance(AICompany.MY_COMPANY) + " - " + AICompany.GetLoanAmount());
 		this.last_cash_output = AIDate.GetCurrentDate();
 	}
-	this.GetMoney(200000);
+	Utils_General.GetMoney(200000);
 	if (AIDate.GetCurrentDate() - this.last_improve_buslines_date > 200) {
 		this._bus_manager.ImproveLines();
 		this.last_improve_buslines_date = AIDate.GetCurrentDate();
 	}
-	this.GetMoney(200000);
+	Utils_General.GetMoney(200000);
 	if (AIDate.GetCurrentDate() - this.last_vehicle_check > 11 || this.need_vehicle_check) {
 		local ret1 = this._bus_manager.CheckRoutes();
 		local ret2 = this._truck_manager.CheckRoutes();
@@ -472,17 +428,34 @@ function AdmiralAI::DoMaintenance()
 		this.last_vehicle_check = AIDate.GetCurrentDate();
 		this.need_vehicle_check = ret1 || ret2 || ret3;
 	}
+	local removed = [];
+	foreach (idx, pair in this.sell_stations) {
+		local tiles = AITileList_StationType(pair[0], pair[1]);
+		tiles.Valuate(AITile.DemolishTile);
+		tiles.Valuate(AITile.IsStationTile);
+		tiles.KeepValue(0);
+		if (!AIStation.IsValidStation(pair[0]) || tiles.Count() == 0) {
+			removed.append(idx);
+		}
+	}
+	for (local i = removed.len() - 1; i >= 0; i--) {
+		this.sell_stations.remove(removed[i]);
+	}
 }
 
 function AdmiralAI::Start()
 {
-	Utils.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "difficulty.vehicle_breakdowns"]);
+	Utils_General.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "difficulty.vehicle_breakdowns",
+		"construction.build_on_slopes", "station.modified_catchment"]);
 	main_instance = this;
+	local start_tick = this.GetTick();
 
 	if (AICompany.GetName(AICompany.MY_COMPANY).find("AdmiralAI") == null) {
-		Utils.SetCompanyName(Utils.RandomReorder(["AdmiralAI"]));
+		Utils_General.SetCompanyName(Utils_Array.RandomReorder(["AdmiralAI"]));
 		AILog.Info(AICompany.GetName(AICompany.MY_COMPANY) + " has just started!");
 	}
+
+	AIGroup.EnableWagonRemoval(true);
 
 	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1 || this.GetSetting("always_autorenew")) {
 		AILog.Info("Breakdowns are on or the setting always_autorenew is on, so enabling autorenew");
@@ -493,6 +466,10 @@ function AdmiralAI::Start()
 		AICompany.SetAutoRenewStatus(false);
 	}
 
+	/* All vehicle groups are deleted after load and recreated in all AfterLoadGRFs
+	 * functions. This is done so we don't have so save the GroupIDs and can
+	 * easier load savegames saved by other AIs that use a different group
+	 * structure. */
 	local group_list = AIGroupList();
 	foreach (group, dummy in group_list) {
 		AIGroup.DeleteGroup(group);
@@ -509,6 +486,8 @@ function AdmiralAI::Start()
 	local build_road_route = 3;
 	local last_type = AIRoad.ROADTYPE_ROAD;
 	AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
+	/* Before starting the main loop, sleep a bit to prevent problems with ecs */
+	this.Sleep(max(1, 260 - (this.GetTick() - start_tick)));
 	while(1) {
 		this.DoMaintenance();
 		if (this.need_vehicle_check) {
@@ -518,14 +497,14 @@ function AdmiralAI::Start()
 		last_type = last_type == AIRoad.ROADTYPE_ROAD ? AIRoad.ROADTYPE_TRAM : AIRoad.ROADTYPE_ROAD;
 		if (AIRoad.IsRoadTypeAvailable(last_type)) AIRoad.SetCurrentRoadType(last_type);
 		local build_route = false;
-		this.GetMoney(200000);
+		Utils_General.GetMoney(200000);
 		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 390000) {
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
 			if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_planes")) {
-				build_route = this._train_manager.BuildNewRoute();
-				this.GetMoney(200000);
+				build_route = this._aircraft_manager.BuildNewRoute();
+				Utils_General.GetMoney(200000);
 			}
 			veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
@@ -553,7 +532,7 @@ function AdmiralAI::Start()
 			}
 			build_road_route = 3;
 		}
-		this.GetMoney(200000);
+		Utils_General.GetMoney(200000);
 		local veh_list = AIVehicleList();
 		veh_list.Valuate(AIVehicle.GetVehicleType);
 		veh_list.KeepValue(AIVehicle.VEHICLE_ROAD);
@@ -580,13 +559,13 @@ function AdmiralAI::Start()
 			//build_busses = !build_busses;
 			if (build_route) build_road_route--;
 		}
-		this.GetMoney(200000);
+		Utils_General.GetMoney(200000);
 		if (this.GetSetting("build_statues")) {
 			if (AICompany.GetLoanAmount() == 0 && AICompany.GetBankBalance(AICompany.MY_COMPANY) > 200000) {
 				local town_list = AITownList();
 				town_list.Valuate(AITown.HasStatue);
 				town_list.RemoveValue(1);
-				town_list.Valuate(AdmiralAI.NulValuator);
+				town_list.Valuate(Utils_Valuator.NulValuator);
 				local station_list = AIStationList(AIStation.STATION_ANY);
 				station_list.Valuate(AIStation.GetNearestTown);
 				foreach (station, town in station_list) {
@@ -604,7 +583,7 @@ function AdmiralAI::Start()
 				}
 			}
 		}
-		this.GetMoney(200000);
+		Utils_General.GetMoney(200000);
 		this.Sleep(10);
 	}
 };

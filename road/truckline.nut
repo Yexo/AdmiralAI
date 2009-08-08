@@ -108,8 +108,8 @@ function TruckLine::CloseRoute()
 	this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	AdmiralAI.SendVehicleToSellToDepot();
-	this._station_from.CloseStation();
-	this._station_to.CloseStation();
+	this._station_from.CloseTruckStation();
+	this._station_to.CloseTruckStation();
 	this._valid = false;
 }
 
@@ -127,7 +127,7 @@ function TruckLine::BuildVehicles(num)
 	if (!this._valid) return true;
 	this.UpdateVehicleList();
 	this._FindEngineID();
-	if (this._engine_id == null) return;
+	if (this._engine_id == null) return true;
 	local max_veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
 	local max_to_build = min(min(this._station_from.CanAddTrucks(num, this._distance, max_veh_speed), this._station_to.CanAddTrucks(num, this._distance, max_veh_speed)), num);
 	if (max_to_build == 0) return true;
@@ -151,8 +151,9 @@ function TruckLine::BuildVehicles(num)
 			continue;
 		}
 		if (!AIVehicle.RefitVehicle(v, this._cargo)) {
+			local cash_shortage = AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH;
 			AIVehicle.SellVehicle(v);
-			return false;
+			return !cash_shortage;
 		}
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
@@ -172,11 +173,11 @@ function TruckLine::BuildVehicles(num)
 
 function TruckLine::CheckVehicles()
 {
-	if (!this._valid) return;
+	if (!this._valid) return false;
 	this.UpdateVehicleList();
 	if (!AIIndustry.IsValidIndustry(this._ind_from) || (this._ind_to != null && !AIIndustry.IsValidIndustry(this._ind_to))) {
 		this.CloseRoute();
-		return;
+		return false;
 	}
 
 	local list = AIList();
@@ -200,7 +201,7 @@ function TruckLine::CheckVehicles()
 	list.KeepValue(AIStation.GetLocation(this._station_from.GetStationID()));
 	list.Valuate(AIVehicle.GetCurrentSpeed);
 	list.KeepBelowValue(10);
-	list.Valuate(Utils.VehicleManhattanDistanceToTile, AIStation.GetLocation(this._station_from.GetStationID()));
+	list.Valuate(Utils_Tile.VehicleManhattanDistanceToTile, AIStation.GetLocation(this._station_from.GetStationID()));
 	list.KeepBelowValue(7);
 	list.Valuate(AIVehicle.GetState);
 	list.KeepValue(AIVehicle.VS_RUNNING);

@@ -99,10 +99,10 @@ function BusLine::BuildVehicles(num)
 {
 	this.UpdateVehicleList();
 	this._FindEngineID();
-	if (this._engine_id == null) return;
+	if (this._engine_id == null) return true;
 	local max_speed = AIEngine.GetMaxSpeed(this._engine_id);
 	local max_to_build = min(min(this._station_from.CanAddBusses(num, this._distance, max_speed), this._station_to.CanAddBusses(num, this._distance, max_speed)), num);
-	if (max_to_build == 0) return;
+	if (max_to_build == 0) return true;
 	if (max_to_build < 0) {
 		this._vehicle_list.Valuate(AIVehicle.GetAge);
 		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
@@ -123,8 +123,9 @@ function BusLine::BuildVehicles(num)
 			continue;
 		}
 		if (!AIVehicle.RefitVehicle(v, this._cargo)) {
+			local cash_shortage = AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH;
 			AIVehicle.SellVehicle(v);
-			return false;
+			return !cash_shortage;
 		}
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
@@ -222,8 +223,9 @@ function BusLine::CheckVehicles()
 		if (veh_speed > 85) target_rating += min(17, (veh_speed - 85) / 4);
 		if (rating < target_rating && num_young_vehicles == 0 && num_new == 0) num_new = 1;
 		if (rating < target_rating - 20 && num_young_vehicles + num_new <= 1) num_new++;
-		if (num_new > 0) this.BuildVehicles(num_new);
+		if (num_new > 0) return !this.BuildVehicles(num_new);
 	}
+	return false;
 }
 
 function BusLine::_AutoReplace(old_vehicle_id, new_engine_id)

@@ -30,18 +30,19 @@ class StationManager
 	 * Create a new StationManager.
 	 * @param station_id The StationID of the station to manage.
 	 */
-	constructor(station_id, truckline_manager) {
+	constructor(station_id) {
 		this._station_id = station_id;
 		this._truck_points = 0;
 		this._bus_points = 0;
-		this._truckline_manager = truckline_manager;
 		this._is_drop_station = false;
+		this._rail_type = null;
+		this._platform_length = null;
 	}
 
 	/**
-	 * Close down this stations if there are no more trucks using it.
+	 * Close down this stations for trucks if there are no more trucks using it.
 	 */
-	function CloseStation();
+	function CloseTruckStation();
 
 	/**
 	 * Get the StationID of the station this StationManager is managing.
@@ -73,7 +74,8 @@ class StationManager
 	function RemoveTrucks(num, distance, speed);
 
 	/**
-	 * Get if their are any busses with this station in their order list.
+	 * Query whether there are any busses with this station in their order list.
+	 * @return True if and only if at least one bus visits this station.
 	 */
 	function HasBusses();
 
@@ -100,6 +102,31 @@ class StationManager
 	 */
 	function RemoveBusses(num, distance, speed);
 
+	/**
+	 * Query if this station is a cargo drop station.
+	 * @return Whether this station is a cargo drop station.
+	 */
+	function IsCargoDrop();
+
+	/**
+	 * Set whether this station is a cargo drop station or not.
+	 * @param is_drop_station True if and only if this station is a drop station.
+	 */
+	function SetCargoDrop(is_drop_station);
+
+	/**
+	 * Check if this station has a drivethrough bus stop.
+	 * @return True if and only if there is a least one drivethrough bus stop.
+	 */
+	function HasArticulatedBusStop();
+
+	/**
+	 * Convert rail station to another rail type.
+	 * @param rail_type The RailType to convert to.
+	 * @return Whether the conversion succeeded.
+	 */
+	function ConvertRailType(rail_type);
+
 /* private: */
 
 	/**
@@ -111,11 +138,21 @@ class StationManager
 	 */
 	function _TryBuildExtraTruckStops(num_to_build, delete_tiles);
 
+	/**
+	 * Get the number of road vehicles points a vehicle is worth. Higher speed means
+	 * more points, while higher distance means less points. The total number of
+	 * points per staiton is capped by a constant times the amount of stops.
+	 * @param distance The distance the vehicle travels.
+	 * @param speed The maximum speed of the vehicle.
+	 */
+	function GetPoints(speed, distance);
+
 	_station_id = null;      ///< The StationID of the station this StationManager manages.
 	_truck_points = null;    ///< The total truck points of trucks that have this station in their order list.
 	_bus_points = null;      ///< The total bus points of busses that have this station in their order list.
 	_is_drop_station = null; ///< True if this stations is used for dropping cargo. (passengers don't count)
-	_truckline_manager = null;
+	_rail_type = null;       ///< The RailType of this station and the tracks in front of it.
+	_platform_length = null; ///< The length of the train platforms in tiles.
 };
 
 function StationManager::SetCargoDrop(is_drop_station)
@@ -145,7 +182,7 @@ function StationManager::HasArticulatedBusStop()
 	return !list.IsEmpty();
 }
 
-function StationManager::CloseStation()
+function StationManager::CloseTruckStation()
 {
 	if (this._truck_points > 0) return;
 	local list = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP);
@@ -164,7 +201,7 @@ function StationManager::CloseStation()
 			break;
 		}
 	}
-	this._truckline_manager.ClosedStation(this);
+	::main_instance._truckline_manager.ClosedStation(this);
 }
 
 function StationManager::GetStationID()
@@ -226,6 +263,47 @@ function StationManager::RemoveBusses(num, distance, speed)
 	this._bus_points -= num * points_per_bus;
 }
 
+function StationManager::ConvertRailType(rail_type)
+{
+	assert(this._rail_type != null);
+	if (!AIRail.TrainHasPowerOnRail(this._rail_type, rail_type)) return false;
+	if (this._rail_type == rail_type) return true;
+
+	local tiles = AITileList_StationType(this._station_id, AIStation.STATION_TRAIN);
+	tiles.Sort(AIAbstractList.SORT_BY_ITEM, true);
+	if (AIRail.GetRailTracks(tiles.Begin()) & AIRail.RAILTRACK_NW_SE) {
+		local tile = tiles.Begin() + AIMap.GetTileIndex(0, -1);
+		if (AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NW_SE && AICompany.IsMine(AITile.GetOwner(tile))) {
+			tiles.AddRectangle(tile, tile + AIMap.GetTileIndex(1, -1));
+		}
+		tile = tiles.Begin() + AIMap.GetTileIndex(0, this._platform_length);
+		if (AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NW_SE && AICompany.IsMine(AITile.GetOwner(tile))) {
+			tiles.AddRectangle(tile, tile + AIMap.GetTileIndex(1, 1));
+		}
+	} else {
+		local tile = tiles.Begin() + AIMap.GetTileIndex(-1, 0);
+		if (AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NE_SW && AICompany.IsMine(AITile.GetOwner(tile))) {
+			tiles.AddRectangle(tile, tile + AIMap.GetTileIndex(-1, 1));
+		}
+		tile = tiles.Begin() + AIMap.GetTileIndex(this._platform_length, 0);
+		if (AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NE_SW && AICompany.IsMine(AITile.GetOwner(tile))) {
+			tiles.AddRectangle(tile, tile + AIMap.GetTileIndex(1, 1));
+		}
+	}
+
+	foreach (tile, d in tiles) {
+		local num_tries = 40;
+		while (num_tries-- > 0) {
+			if (AIRail.ConvertRailType(tile, tile, rail_type)) break;
+			::main_instance.Sleep(20);
+		}
+		if (AIRail.GetRailType(tile) != rail_type) return false;
+	}
+
+	this._rail_type = rail_type;
+	return true;
+}
+
 function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 {
 	if (AITown.GetRating(AIStation.GetNearestTown(this._station_id), AICompany.MY_COMPANY) <= AITown.TOWN_RATING_VERY_POOR) return;
@@ -266,7 +344,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 					{
 						local exec = AIExecMode();
 						AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)));
-						if (AdmiralAI.GetRealHeight(tile) > AdmiralAI.GetRealHeight(tile + offset)) {
+						if (Utils_Tile.GetRealHeight(tile) > Utils_Tile.GetRealHeight(tile + offset)) {
 							AITile.LowerTile(tile, AITile.GetSlope(tile));
 						}
 					}

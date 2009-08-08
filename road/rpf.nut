@@ -185,7 +185,7 @@ function RPF::_GetBridgeNumSlopes(end_a, end_b)
 
 function RPF::_Cost(path, new_tile, new_direction, self)
 {
-	if (AdmiralAI.GetRealHeight(new_tile) == 0) return self._max_cost;
+	if (Utils_Tile.GetRealHeight(new_tile) == 0) return self._max_cost;
 	/* path == null means this is the first node of a path, so the cost is 0. */
 	if (path == null) return 0;
 	if (AITile.HasTransportType(new_tile, AITile.TRANSPORT_RAIL)) return self._max_cost;
@@ -316,7 +316,7 @@ function RPF::_CheckDirection(tile, existing_direction, new_direction, self)
 
 function RPF::_GetDirection(from, to, is_bridge)
 {
-	if (!is_bridge && Utils.IsNearlyFlatTile(to)) return 0xFF;
+	if (!is_bridge && Utils_Tile.IsNearlyFlatTile(to)) return 0xFF;
 	if (from - to == 1) return 1;
 	if (from - to == -1) return 2;
 	if (from - to == AIMap.GetMapSizeX()) return 4;

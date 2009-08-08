@@ -74,13 +74,12 @@ function RailRouteBuilder::DetectPlatformLength(station)
 
 function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_length, second_station)
 {
-	AILog.Info("BuildTrackNearStation");
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
 		if (start_tile > tile) {
 			AIRail.RemoveRailStationTileRect(tile + AIMap.GetTileIndex(0, platform_length), tile + AIMap.GetTileIndex(1, platform_length + 1));
 			local tile2 = tile + AIMap.GetTileIndex(0, platform_length)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
-				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+				AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)));
 			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(0, platform_length), AIRail.RAILTRACK_NW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(1, platform_length), AIRail.RAILTRACK_NW_SE)) return false;
@@ -99,7 +98,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 			tile = tile + AIMap.GetTileIndex(0, 2);
 			local tile2 = tile + AIMap.GetTileIndex(0, -1)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
-				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+				AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)));
 			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(0, -1), AIRail.RAILTRACK_NW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(1, -1), AIRail.RAILTRACK_NW_SE)) return false;
@@ -119,7 +118,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 			AIRail.RemoveRailStationTileRect(tile + AIMap.GetTileIndex(platform_length, 0), tile + AIMap.GetTileIndex(platform_length + 1, 1));
 			local tile2 = tile + AIMap.GetTileIndex(platform_length, 0)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
-				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+				AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)));
 			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(platform_length, 0), AIRail.RAILTRACK_NE_SW)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(platform_length, 1), AIRail.RAILTRACK_NE_SW)) return false;
@@ -138,7 +137,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 			tile = tile + AIMap.GetTileIndex(2, 0);
 			local tile2 = tile + AIMap.GetTileIndex(-1, 0)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
-				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+				AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)));
 			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 0), AIRail.RAILTRACK_NE_SW)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 1), AIRail.RAILTRACK_NE_SW)) return false;
@@ -148,8 +147,8 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 0), AIRail.RAILTRACK_SW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 1), AIRail.RAILTRACK_NW_NE)) return false;
 
-			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 1), AIRail.RAILTRACK_NE_SE)) return false;
-			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 0), AIRail.RAILTRACK_NW_SW)) return false;
+			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 1), AIRail.RAILTRACK_NW_SW)) return false;
+			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 0), AIRail.RAILTRACK_NE_SE)) return false;
 
 			if (!AIRail.BuildSignal(tile + AIMap.GetTileIndex(-2, second_station ? 0 : 1), tile + AIMap.GetTileIndex(-3, second_station ? 0 : 1), AIRail.SIGNALTYPE_PBS_ONEWAY)) return false;
 		}
@@ -172,39 +171,47 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		local tile3 = tile + AIMap.GetTileIndex(0, platform_length);
 		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_a_already_build = true;
-			sources.push([tile + AIMap.GetTileIndex(0, -3), tile + AIMap.GetTileIndex(0, -2)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, -3)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, -4), 2, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(0, -3), tile + AIMap.GetTileIndex(0, -2)]);
+			}
 		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_a_already_build = true;
-			sources.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
-		} else {
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(0, -1), 2, 1)) {
-				sources.push([tile + AIMap.GetTileIndex(0, -1), tile + AIMap.GetTileIndex(0, 0)]);
-			}
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(0, platform_length + 2), 2, 1)) {
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, platform_length + 2)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, platform_length + 2), 2, 2)) {
 				sources.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
 			}
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, -2), tile + AIMap.GetTileIndex(2, -1));
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(2, platform_length + 3));
+		} else {
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, -2), 4, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(0, -1), tile + AIMap.GetTileIndex(0, 0)]);
+			}
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, platform_length + 2), 4, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
+			}
 		}
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(1, -2), tile + AIMap.GetTileIndex(2, -1));
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(2, platform_length + 3));
 	} else {
 		local tile2 = tile + AIMap.GetTileIndex(-1, 0);
 		local tile3 = tile + AIMap.GetTileIndex(platform_length, 0);
 		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_a_already_build = true;
-			sources.push([tile + AIMap.GetTileIndex(-3, 0), tile + AIMap.GetTileIndex(-2, 0)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(-3, 0)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-4, -1), 2, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(-3, 0), tile + AIMap.GetTileIndex(-2, 0)]);
+			}
 		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_a_already_build = true;
-			sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
-		} else {
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, 0), 1, 2)) {
-				sources.push([tile + AIMap.GetTileIndex(-1, 0), tile + AIMap.GetTileIndex(0, 0)]);
-			}
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 0), 1, 2)) {
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(platform_length + 2, 0)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, -1), 2, 2)) {
 				sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
 			}
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(-2, 1), tile + AIMap.GetTileIndex(-1, 2));
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 3, 2));
+		} else {
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-2, -1), 2, 4)) {
+				sources.push([tile + AIMap.GetTileIndex(-1, 0), tile + AIMap.GetTileIndex(0, 0)]);
+			}
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, -1), 2, 4)) {
+				sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
+			}
 		}
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(-2, 1), tile + AIMap.GetTileIndex(-1, 2));
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 3, 2));
 	}
 	tile = AIStation.GetLocation(station_b);
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
@@ -212,42 +219,51 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		local tile3 = tile + AIMap.GetTileIndex(0, platform_length);
 		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_b_already_build = true;
-			goals.push([tile + AIMap.GetTileIndex(0, -3), tile + AIMap.GetTileIndex(0, -2)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, -3)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, -4), 2, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(0, -3), tile + AIMap.GetTileIndex(0, -2)]);
+			}
 		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_b_already_build = true;
-			goals.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
-		} else {
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(0, -1), 2, 1)) {
-				goals.push([tile + AIMap.GetTileIndex(0, -1), tile + AIMap.GetTileIndex(0, 0)]);
-			}
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(0, platform_length + 2), 2, 1)) {
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, platform_length + 2)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, platform_length + 2), 2, 2)) {
 				goals.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
 			}
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, -2), tile + AIMap.GetTileIndex(2, -1));
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(2, platform_length + 3));
+		} else {
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, -2), 4, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(0, -1), tile + AIMap.GetTileIndex(0, 0)]);
+			}
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, platform_length + 2), 4, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
+			}
 		}
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(1, -2), tile + AIMap.GetTileIndex(2, -1));
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(2, platform_length + 3));
 	} else {
 		local tile2 = tile + AIMap.GetTileIndex(-1, 0);
 		local tile3 = tile + AIMap.GetTileIndex(platform_length, 0);
 		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_b_already_build = true;
-			goals.push([tile + AIMap.GetTileIndex(-3, 0), tile + AIMap.GetTileIndex(-2, 0)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(-3, 0)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-4, -1), 2, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(-3, 0), tile + AIMap.GetTileIndex(-2, 0)]);
+			}
 		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_b_already_build = true;
-			goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
-		} else {
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-1, 0), 1, 2)) {
-				goals.push([tile + AIMap.GetTileIndex(1, 0), tile + AIMap.GetTileIndex(0, 0)]);
-			}
-			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 0), 1, 2)) {
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(platform_length + 2, 0)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, -1), 2, 2)) {
 				goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
 			}
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(-2, 1), tile + AIMap.GetTileIndex(-1, 2));
-			ignored.AddRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 3, 2));
+		} else {
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-2, -1), 2, 4)) {
+				goals.push([tile + AIMap.GetTileIndex(-1, 0), tile + AIMap.GetTileIndex(0, 0)]);
+			}
+			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, -1), 2, 4)) {
+				goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
+			}
 		}
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(-2, 1), tile + AIMap.GetTileIndex(-1, 2));
+		ignored.AddRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 3, 2));
 	}
-	if (sources.len() == 0 || goals.len() == 0) return -1;
-	ignored.Valuate(AdmiralAI.ItemValuator);
+	if (sources.len() == 0) return -1;
+	if (goals.len() == 0) return -2;
+	ignored.Valuate(Utils_Valuator.ItemValuator);
 	pf.cost.max_cost = AIMap.DistanceManhattan(sources[0][0], goals[0][0]) * 1.5 * (pf.cost.tile + pf.cost.new_rail);
 	pf.InitializePath(sources, goals, ignored);
 	local path = pf.FindPath(200000);
@@ -267,15 +283,15 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		first_path = path;
 		if (path == null || path == false) return -7;
 	}
-	if (!building_ok) return -2;
+	if (!building_ok) return -9;
 	RailRouteBuilder.SignalPath(path);
 	local end_tile = path.GetTile();
 	while (path.GetParent() != null) path = path.GetParent();
 	local start_tile = path.GetTile();
 	local tile = AIStation.GetLocation(station_a);
-	if (!track_near_station_a_already_build && !RailRouteBuilder.BuildTrackNearStation(tile, start_tile, platform_length, false)) return -3;
+	if (!track_near_station_a_already_build && !RailRouteBuilder.BuildTrackNearStation(tile, start_tile, platform_length, false)) return -1;
 	local tile = AIStation.GetLocation(station_b);
-	if (!track_near_station_b_already_build && !RailRouteBuilder.BuildTrackNearStation(tile, end_tile, platform_length, true)) return -4;
+	if (!track_near_station_b_already_build && !RailRouteBuilder.BuildTrackNearStation(tile, end_tile, platform_length, true)) return -2;
 
 	//pathfind the way back
 	local sources = [];
@@ -284,9 +300,13 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	local tile = AIStation.GetLocation(station_a);
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
 		if (start_tile < tile) {
-			goals.push([tile + AIMap.GetTileIndex(1, -3), tile + AIMap.GetTileIndex(1, -2)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(1, -3)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(1, -4), 2, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(1, -3), tile + AIMap.GetTileIndex(1, -2)]);
+			}
 		} else {
-			goals.push([tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(1, platform_length + 1)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(1, platform_length + 2)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), 2, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(1, platform_length + 1)]);
+			}
 		}
 		ignored.AddTile(tile + AIMap.GetTileIndex(0, -1));
 		ignored.AddTile(tile + AIMap.GetTileIndex(0, -2));
@@ -294,9 +314,13 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		ignored.AddTile(tile + AIMap.GetTileIndex(0,  platform_length + 3));
 	} else {
 		if (start_tile < tile) {
-			goals.push([tile + AIMap.GetTileIndex(-3, 1), tile + AIMap.GetTileIndex(-2, 1)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(-3, 1)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-4, 1), 2, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(-3, 1), tile + AIMap.GetTileIndex(-2, 1)]);
+			}
 		} else {
-			goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 1, 1)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(platform_length + 2, 1)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), 2, 2)) {
+				goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 1, 1)]);
+			}
 		}
 		ignored.AddTile(tile + AIMap.GetTileIndex(-1, 0));
 		ignored.AddTile(tile + AIMap.GetTileIndex(-2, 0));
@@ -306,9 +330,13 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	tile = AIStation.GetLocation(station_b);
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
 		if (end_tile < tile) {
-			sources.push([tile + AIMap.GetTileIndex(1, -3), tile + AIMap.GetTileIndex(1, -2)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(1, -3)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(1, -4), 2, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(1, -3), tile + AIMap.GetTileIndex(1, -2)]);
+			}
 		} else {
-			sources.push([tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(1, platform_length + 1)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(1, platform_length + 2)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), 2, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(1, platform_length + 1)]);
+			}
 		}
 		ignored.AddTile(tile + AIMap.GetTileIndex(0, -1));
 		ignored.AddTile(tile + AIMap.GetTileIndex(0, -2));
@@ -316,16 +344,22 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		ignored.AddTile(tile + AIMap.GetTileIndex(0,  platform_length + 3));
 	} else {
 		if (end_tile < tile) {
-			sources.push([tile + AIMap.GetTileIndex(-3, 1), tile + AIMap.GetTileIndex(-2, 1)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(-3, 1)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(-4, 1), 2, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(-3, 1), tile + AIMap.GetTileIndex(-2, 1)]);
+			}
 		} else {
-			sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 1, 1)]);
+			if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(platform_length + 2, 1)) || AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), 2, 2)) {
+				sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 1, 1)]);
+			}
 		}
 		ignored.AddTile(tile + AIMap.GetTileIndex(-1, 0));
 		ignored.AddTile(tile + AIMap.GetTileIndex(-2, 0));
 		ignored.AddTile(tile + AIMap.GetTileIndex(platform_length + 2, 0));
 		ignored.AddTile(tile + AIMap.GetTileIndex(platform_length + 3, 0));
 	}
-	ignored.Valuate(AdmiralAI.ItemValuator);
+	if (goals.len() == 0) return -1;
+	if (sources.len() == 0) return -2;
+	ignored.Valuate(Utils_Valuator.ItemValuator);
 	pf.cost.max_cost = AIMap.DistanceManhattan(sources[0][0], goals[0][0]) * 1.5 * (pf.cost.tile + pf.cost.new_rail);
 	pf.InitializePath(sources, goals, ignored);
 	local path = pf.FindPath(200000);
@@ -371,20 +405,38 @@ function RailRouteBuilder::BuildPath(path)
 		if (prevprev != null) {
 			if (AIMap.DistanceManhattan(prev, path.GetTile()) > 1) {
 				if (AITunnel.GetOtherTunnelEnd(prev) == path.GetTile()) {
-					if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_RAIL, prev)) {
+					if (AITunnel.IsTunnelTile(prev)) {
+						if (AIRail.GetCurrentRailType() != AIRail.GetRailType(prev)) {
+							assert(AIRail.TrainHasPowerOnRail(AIRail.GetRailType(prev), AIRail.GetCurrentRailType()));
+							if (!AIRail.ConvertRailType(prev, prev, AIRail.GetCurrentRailType())) {
+								AILog.Error("4 " + AIError.GetLastErrorString());
+								return false;
+							}
+						}
+					} else if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_RAIL, prev)) {
 						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
 							AILog.Error("1 " + AIError.GetLastErrorString());
 							return false;
 						}
 					}
 				} else {
-					local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), prev) + 1);
-					bridge_list.Valuate(AIBridge.GetMaxSpeed);
-					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-					if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
-						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
-							AILog.Error("2 " + AIError.GetLastErrorString());
-							return false;
+					if (AIBridge.IsBridgeTile(prev)) {
+						if (AIRail.GetCurrentRailType() != AIRail.GetRailType(prev)) {
+							assert(AIRail.TrainHasPowerOnRail(AIRail.GetRailType(prev), AIRail.GetCurrentRailType()));
+							if (!AIRail.ConvertRailType(prev, prev, AIRail.GetCurrentRailType())) {
+								AILog.Error("5 " + AIError.GetLastErrorString());
+								return false;
+							}
+						}
+					} else {
+						local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), prev) + 1);
+						bridge_list.Valuate(AIBridge.GetMaxSpeed);
+						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+						if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
+							if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
+								AILog.Error("2 " + AIError.GetLastErrorString());
+								return false;
+							}
 						}
 					}
 				}
@@ -410,6 +462,13 @@ function RailRouteBuilder::BuildPath(path)
 							return false;
 						}
 					}
+				} else if (AIRail.GetRailType(prev) != AIRail.GetCurrentRailType()) {
+						assert(AIRail.TrainHasPowerOnRail(AIRail.GetRailType(prev), AIRail.GetCurrentRailType()));
+						if (!AIRail.ConvertRailType(prev, prev, AIRail.GetCurrentRailType())) {
+							AILog.Error("6 " + AIError.GetLastErrorString());
+							AISign.BuildSign(prev, "!! " + AIRail.GetRailType(prev) + "  " + AIRail.GetCurrentRailType());
+							return false;
+						}
 				}
 			}
 		}
@@ -473,52 +532,51 @@ function RailRouteBuilder::BuildDepot(path)
 				local offsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
 				                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0)];
 				foreach (offset in offsets) {
-					if (AdmiralAI.GetRealHeight(ppp + offset) != AdmiralAI.GetRealHeight(ppp)) continue;
-					if (AIRail.BuildRailDepot(ppp + offset, ppp)) {
-						switch (offset) {
-							case -1:
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_NE)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NE_SE)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								break;
-							case 1:
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_SW)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_SW_SE)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								break;
-							case -AIMap.GetMapSizeX():
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_NE)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_SW)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								break;
-							case AIMap.GetMapSizeX():
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NE_SE)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_SW_SE)) {
-									AITile.DemolishTile(ppp + offset);
-									continue;
-								}
-								break;
-						}
+					if (Utils_Tile.GetRealHeight(ppp + offset) != Utils_Tile.GetRealHeight(ppp)) continue;
+					if (AIRail.IsRailDepotTile(ppp + offset) && AIRail.TrainHasPowerOnRail(AIRail.GetRailType(ppp + offset), AIRail.GetCurrentRailType())) {
+						if (AIRail.GetRailDepotFrontTile(ppp + offset) != ppp) continue;
+						if (AIRail.GetRailType(ppp + offset) == AIRail.GetCurrentRailType()) return ppp + offset;
+						if (!AIRail.ConvertRailType(ppp + offset, ppp + offset, AIRail.GetCurrentRailType())) continue;
 						return ppp + offset;
+					} else {
+						local test = AITestMode();
+						if (!AIRail.BuildRailDepot(ppp + offset, ppp)) continue;
 					}
+					switch (offset) {
+						case -1:
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_NE)) {
+								continue;
+							}
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NE_SE)) {
+								continue;
+							}
+							break;
+						case 1:
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_SW)) {
+								continue;
+							}
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_SW_SE)) {
+								continue;
+							}
+							break;
+						case -AIMap.GetMapSizeX():
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_NE)) {
+								continue;
+							}
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_SW)) {
+								continue;
+							}
+							break;
+						case AIMap.GetMapSizeX():
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NE_SE)) {
+								continue;
+							}
+							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_SW_SE)) {
+								continue;
+							}
+							break;
+					}
+					if (AIRail.BuildRailDepot(ppp + offset, ppp)) return ppp + offset;
 				}
 			}
 		}
