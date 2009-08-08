@@ -67,13 +67,6 @@ class BusLineManager
 /* private: */
 
 	/**
-	 * A very simple valuator that just returns the item.
-	 * @param item The item to valuate.
-	 * @return item.
-	 */
-	function _ValuatorReturnItem(item);
-
-	/**
 	 * Build a depot in a given town, close to a station.
 	 * @param town_manager A TownManager that is responsible for the town.
 	 * @param station_manager The StationManager responsible for the station we
@@ -107,7 +100,7 @@ function BusLineManager::AfterLoad()
 {
 	local vehicle_list = AIVehicleList();
 	vehicle_list.Valuate(AIVehicle.GetVehicleType);
-	vehicle_list.KeepValue(AIVehicle.VEHICLE_ROAD);
+	vehicle_list.KeepValue(AIVehicle.VT_ROAD);
 	vehicle_list.Valuate(AIVehicle.GetCapacity, ::main_instance._passenger_cargo_id);
 	vehicle_list.KeepAboveValue(0);
 	local st_from = {};
@@ -213,7 +206,7 @@ function BusLineManager::ImproveLines()
 
 function BusLineManager::BuildNewLine()
 {
-	local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+	local engine_list = AIEngineList(AIVehicle.VT_ROAD);
 	engine_list.Valuate(AIEngine.GetRoadType);
 	engine_list.KeepValue(AIRoad.GetCurrentRoadType());
 // 	engine_list.Valuate(AIEngine.IsArticulated);
@@ -283,7 +276,7 @@ function BusLineManager::BuildNewLine()
 		if (!manager.CanGetStation()) continue;
 		if (AITown.GetPopulation(town_from) < 150) continue;
 		local townlist = AITownList();
-		townlist.Valuate(BusLineManager._ValuatorReturnItem);
+		townlist.Valuate(Utils_Valuator.ItemValuator);
 		townlist.KeepAboveValue(town_from);
 		townlist.Valuate(AITown.GetDistanceManhattanToTile, AITown.GetLocation(town_from));
 		townlist.KeepBetweenValue(50, this._max_distance_new_line);
@@ -342,11 +335,6 @@ function BusLineManager::NewLineExistingRoad()
 	return this._NewLineExistingRoadGenerator(200);
 }
 
-function BusLineManager::_ValuatorReturnItem(item)
-{
-	return item;
-}
-
 function BusLineManager::_BuildDepot(town_manager, station_manager)
 {
 	return town_manager.GetDepot(station_manager);
@@ -354,7 +342,7 @@ function BusLineManager::_BuildDepot(town_manager, station_manager)
 
 function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 {
-	local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+	local engine_list = AIEngineList(AIVehicle.VT_ROAD);
 	engine_list.Valuate(AIEngine.GetRoadType);
 	engine_list.KeepValue(AIRoad.GetCurrentRoadType());
 	engine_list.Valuate(AIEngine.CanRefitCargo, ::main_instance._passenger_cargo_id);
@@ -370,7 +358,7 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		}
 		if (!manager.CanGetStation()) continue;
 		local townlist = AITownList();
-		townlist.Valuate(BusLineManager._ValuatorReturnItem);
+		townlist.Valuate(Utils_Valuator.ItemValuator);
 		townlist.KeepAboveValue(town);
 		townlist.Valuate(AITown.GetDistanceManhattanToTile, AITown.GetLocation(town));
 		townlist.KeepBetweenValue(50, this._max_distance_existing_route);

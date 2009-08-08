@@ -196,7 +196,7 @@ function TruckLine::CheckVehicles()
 
 	local list = AIList();
 	list.AddList(this._vehicle_list);
-	list.Valuate(AIOrder.GetOrderDestination, AIOrder.CURRENT_ORDER);
+	list.Valuate(AIOrder.GetOrderDestination, AIOrder.ORDER_CURRENT);
 	list.KeepValue(AIStation.GetLocation(this._station_from.GetStationID()));
 	list.Valuate(AIVehicle.GetCurrentSpeed);
 	list.KeepBelowValue(10);

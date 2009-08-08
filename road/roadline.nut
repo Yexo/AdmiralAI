@@ -54,7 +54,7 @@ class RoadLine
 		this._support_articulated = support_articulated;
 		this._road_type = road_type == null ? AIRoad.GetCurrentRoadType() : road_type;
 		if (create_group) {
-			this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
+			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_ROAD);
 			this.RenameGroup();
 		}
 		this._distance = AIMap.DistanceManhattan(AIStation.GetLocation(station_from.GetStationID()), AIStation.GetLocation(station_to.GetStationID()));
@@ -108,7 +108,7 @@ function RoadLine::_SortEngineList(engine_id)
 function RoadLine::_FindEngineID()
 {
 	this.UpdateVehicleList();
-	local list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+	local list = AIEngineList(AIVehicle.VT_ROAD);
 	list.Valuate(AIEngine.GetRoadType);
 	list.KeepValue(this._road_type);
 	if (!this._support_articulated) {
@@ -117,7 +117,7 @@ function RoadLine::_FindEngineID()
 	}
 	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
 	list.KeepValue(1);
-	list.Valuate(this._SortEngineList);
+	Utils_Valuator.Valuate(list, this._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	local new_engine_id = null;
 	if (list.Count() != 0) {

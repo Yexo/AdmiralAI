@@ -63,7 +63,7 @@ class TrainLine
 		this._valid = true;
 		this._rail_type = rail_type;
 		if (!loaded) {
-			this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_RAIL);
+			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL);
 			this._RenameGroup();
 			this.BuildVehicles(2);
 		}
@@ -414,7 +414,7 @@ function TrainLine::CheckVehicles()
 	list = AIList();
 	list.AddList(this._vehicle_list);
 	foreach (v, d in list) {
-		list.SetValue(v, AIOrder.GetOrderDestination(v, AIOrder.ResolveOrderPosition(v, AIOrder.CURRENT_ORDER)));
+		list.SetValue(v, AIOrder.GetOrderDestination(v, AIOrder.ResolveOrderPosition(v, AIOrder.ORDER_CURRENT)));
 	}
 	list.KeepValue(AIStation.GetLocation(this._station_from.GetStationID()));
 	list.Valuate(Utils_Tile.VehicleManhattanDistanceToTile, AIStation.GetLocation(this._station_from.GetStationID()));
@@ -497,14 +497,14 @@ function TrainLine::_SortEngineWagonList(engine_id)
 function TrainLine::_FindEngineID()
 {
 	this._UpdateVehicleList();
-	local list = AIEngineList(AIVehicle.VEHICLE_RAIL);
+	local list = AIEngineList(AIVehicle.VT_RAIL);
 	list.Valuate(AIEngine.HasPowerOnRail, this._rail_type);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.IsWagon);
 	list.KeepValue(0);
 	list.Valuate(AIEngine.CanPullCargo, this._cargo);
 	list.KeepValue(1);
-	list.Valuate(this._SortEngineList);
+	Utils_Valuator.Valuate(list, this._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
@@ -515,14 +515,14 @@ function TrainLine::_FindEngineID()
 	}
 	this._engine_id = new_engine_id;
 
-	local list = AIEngineList(AIVehicle.VEHICLE_RAIL);
+	local list = AIEngineList(AIVehicle.VT_RAIL);
 	list.Valuate(AIEngine.CanRunOnRail, this._rail_type);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.IsWagon);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
 	list.KeepValue(1);
-	list.Valuate(this._SortEngineWagonList);
+	Utils_Valuator.Valuate(list, this._SortEngineWagonList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	this._wagon_engine_id = list.Count() == 0 ? null : list.Begin();
 }

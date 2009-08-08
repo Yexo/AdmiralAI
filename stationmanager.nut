@@ -326,7 +326,7 @@ function StationManager::ConvertRailType(rail_type)
 
 function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 {
-	if (AITown.GetRating(AIStation.GetNearestTown(this._station_id), AICompany.MY_COMPANY) <= AITown.TOWN_RATING_VERY_POOR) return;
+	if (AITown.GetRating(AIStation.GetNearestTown(this._station_id), AICompany.COMPANY_SELF) <= AITown.TOWN_RATING_VERY_POOR) return;
 	local diagoffsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
 	                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0),
 	                 AIMap.GetTileIndex(-1, -1), AIMap.GetTileIndex(-1, 1),
@@ -346,7 +346,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 	list.Valuate(AIRoad.IsRoadTile);
 	list.KeepValue(0);
 	list.Valuate(AITile.GetOwner);
-	list.RemoveBetweenValue(AICompany.FIRST_COMPANY - 1, AICompany.LAST_COMPANY + 1);
+	list.RemoveBetweenValue(AICompany.COMPANY_FIRST - 1, AICompany.COMPANY_LAST + 1);
 	AILog.Info("TryBuildExtraTruckStops for station " + AIStation.GetName(this._station_id));
 	while (num_to_build > 0) {
 		if (list.Count() == 0) break;
@@ -384,8 +384,8 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 		if (!AIRoad.BuildRoadStation(best_tile, best_front, true, false, true)) return;
 		front_tiles.AddTile(best_front);
 		foreach (offset in diagoffsets) {
-			if (AIRoad.IsRoadTile(best_tile + offset) || (AITile.GetOwner(best_tile + offset) >= AICompany.FIRST_COMPANY &&
-			    AITile.GetOwner(best_tile + offset) <= AICompany.LAST_COMPANY)) continue;
+			if (AIRoad.IsRoadTile(best_tile + offset) || (AITile.GetOwner(best_tile + offset) >= AICompany.COMPANY_FIRST &&
+			    AITile.GetOwner(best_tile + offset) <= AICompany.COMPANY_LAST)) continue;
 			list.AddTile(best_tile + offset);
 		}
 		num_to_build--;

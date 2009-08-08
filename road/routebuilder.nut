@@ -123,7 +123,7 @@ function RouteBuilder::BuildPath(path)
 				/* If it was a road tile, demolish it first. Do this to work around expended roadbits. */
 				if (AIRoad.IsRoadTile(path.GetTile())) AITile.DemolishTile(path.GetTile());
 				if (AITunnel.GetOtherTunnelEnd(path.GetTile()) == par.GetTile()) {
-					if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_ROAD, path.GetTile())) {
+					if (!AITunnel.BuildTunnel(AIVehicle.VT_ROAD, path.GetTile())) {
 						if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 						if (!RouteBuilder._HandleTunnelBuildError(path.GetTile())) break;
 					}
@@ -131,7 +131,7 @@ function RouteBuilder::BuildPath(path)
 					local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) + 1);
 					bridge_list.Valuate(AIBridge.GetMaxSpeed);
 					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-					if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_ROAD, bridge_list.Begin(), path.GetTile(), par.GetTile())) {
+					if (!AIBridge.BuildBridge(AIVehicle.VT_ROAD, bridge_list.Begin(), path.GetTile(), par.GetTile())) {
 						if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 						if (!RouteBuilder._HandleBridgeBuildError(path.GetTile(), par.GetTile())) break;
 					}

@@ -438,7 +438,7 @@ function RailRouteBuilder::BuildPath(path)
 								return false;
 							}
 						}
-					} else if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_RAIL, prev)) {
+					} else if (!AITunnel.BuildTunnel(AIVehicle.VT_RAIL, prev)) {
 						AILog.Error("1 " + AIError.GetLastErrorString());
 						return false;
 					}
@@ -455,7 +455,7 @@ function RailRouteBuilder::BuildPath(path)
 						local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), prev) + 1);
 						bridge_list.Valuate(AIBridge.GetMaxSpeed);
 						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-						if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
+						if (!AIBridge.BuildBridge(AIVehicle.VT_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
 							AILog.Error("2 " + AIError.GetLastErrorString());
 							return false;
 						}

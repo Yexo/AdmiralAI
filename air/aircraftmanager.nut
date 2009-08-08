@@ -80,9 +80,9 @@ class AircraftManager
 function AircraftManager::AfterLoad()
 {
 	/* (Re)create the groups so we can seperatly autoreplace big and small planes. */
-	this._small_engine_group = AIGroup.CreateGroup(AIVehicle.VEHICLE_AIR);
+	this._small_engine_group = AIGroup.CreateGroup(AIVehicle.VT_AIR);
 	AIGroup.SetName(this._small_engine_group, "Small planes");
-	this._big_engine_group = AIGroup.CreateGroup(AIVehicle.VEHICLE_AIR);
+	this._big_engine_group = AIGroup.CreateGroup(AIVehicle.VT_AIR);
 	AIGroup.SetName(this._big_engine_group, "Big planes");
 
 	/* Add all existing airports to the relevant townmanager. */
@@ -104,7 +104,7 @@ function AircraftManager::AfterLoad()
 	/* TODO: evaluate airport orders (they might be from another AI. */
 	local vehicle_list = AIVehicleList();
 	vehicle_list.Valuate(AIVehicle.GetVehicleType);
-	vehicle_list.KeepValue(AIVehicle.VEHICLE_AIR);
+	vehicle_list.KeepValue(AIVehicle.VT_AIR);
 	vehicle_list.Valuate(AIVehicle.GetEngineType);
 	foreach (v, engine in vehicle_list) {
 		if (AIEngine.GetPlaneType(engine) == AIAirport.PT_BIG_PLANE) {
@@ -183,7 +183,7 @@ function AircraftManager::BuildNewRoute()
 	/* We want to search all towns for highest to lowest population but in a
 	 * somewhat random order. */
 	local town_list = AITownList();
-	town_list.Valuate(this._TownValuator);
+	Utils_Valuator.Valuate(town_list, this._TownValuator);
 	town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	local town_list2 = AIList();
 	town_list2.AddList(town_list);
@@ -272,8 +272,8 @@ function AircraftManager::_SortEngineList(engine_id)
 function AircraftManager::_FindEngineID()
 {
 	/* First find the EngineID for new big planes. */
-	local list = AIEngineList(AIVehicle.VEHICLE_AIR);
-	list.Valuate(this._SortEngineList);
+	local list = AIEngineList(AIVehicle.VT_AIR);
+	Utils_Valuator.Valuate(list, this._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
@@ -287,11 +287,11 @@ function AircraftManager::_FindEngineID()
 	this._engine_id = new_engine_id;
 
 	/* And now also for small planes. */
-	local list = AIEngineList(AIVehicle.VEHICLE_AIR);
+	local list = AIEngineList(AIVehicle.VT_AIR);
 	/* Only small planes allowed, no big planes or helicopters. */
 	list.Valuate(AIEngine.GetPlaneType);
 	list.RemoveValue(AIAirport.PT_BIG_PLANE);
-	list.Valuate(this._SortEngineList);
+	Utils_Valuator.Valuate(list, this._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	local new_engine_id = null;
 	if (list.Count() != 0) {

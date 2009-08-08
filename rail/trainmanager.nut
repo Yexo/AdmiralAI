@@ -206,7 +206,7 @@ function TrainManager::Load(data)
 function TrainManager::AfterLoad()
 {
 	foreach (route in this._routes) {
-		route._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_RAIL);
+		route._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL);
 		route._RenameGroup();
 	}
 }
@@ -267,7 +267,7 @@ function TrainManager::IndustryOpen(industry_id)
 
 function TrainManager::RailTypeValuator(rail_type, cargo_id)
 {
-	local list = AIEngineList(AIVehicle.VEHICLE_RAIL);
+	local list = AIEngineList(AIVehicle.VT_RAIL);
 	list.Valuate(AIEngine.HasPowerOnRail, rail_type);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.IsWagon);
@@ -278,7 +278,7 @@ function TrainManager::RailTypeValuator(rail_type, cargo_id)
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	if (list.Count() == 0) return -1;
 
-	local list2 = AIEngineList(AIVehicle.VEHICLE_RAIL);
+	local list2 = AIEngineList(AIVehicle.VT_RAIL);
 	list2.Valuate(AIEngine.CanRunOnRail, rail_type);
 	list2.KeepValue(1);
 	list2.Valuate(AIEngine.IsWagon);
@@ -325,10 +325,10 @@ function TrainManager::BuildNewRoute()
 
 		foreach (ind_from, dummy in val_list) {
 			Utils_General.GetMoney(200000);
-			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) < 180000) return false;
+			if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) < 180000) return false;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
-			ind_acc_list.KeepBetweenValue(50, min(this._max_distance_new_route, (AICompany.GetBankBalance(AICompany.MY_COMPANY) - 60000) / 700));
+			ind_acc_list.KeepBetweenValue(50, min(this._max_distance_new_route, (AICompany.GetBankBalance(AICompany.COMPANY_SELF) - 60000) / 700));
 			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local station_from = this._GetStationNearIndustry(ind_from, true, cargo, ind_to);
@@ -488,9 +488,9 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 	tile_list2.AddList(tile_list);
 
 	local new_tile_list = AITileList();
-	tile_list.Valuate(this.MoveStationTileList, new_tile_list, AIMap.GetTileIndex(-1, -platform_length + 1), 2, platform_length - 2);
+	Utils_Valuator.Valuate(tile_list, this.MoveStationTileList, new_tile_list, AIMap.GetTileIndex(-1, -platform_length + 1), 2, platform_length - 2);
 	tile_list = new_tile_list;
-	tile_list.Valuate(this.HasBuildingRoom1, platform_length);
+	Utils_Valuator.Valuate(tile_list, this.HasBuildingRoom1, platform_length);
 	tile_list.KeepValue(1);
 	if (!producing) {
 		tile_list.Valuate(this.CheckCargoAcceptance1, cargo);
@@ -498,9 +498,9 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 	}
 
 	new_tile_list = AITileList();
-	tile_list2.Valuate(this.MoveStationTileList, new_tile_list, AIMap.GetTileIndex(-platform_length + 1, -1), platform_length - 2, 2);
+	Utils_Valuator.Valuate(tile_list2, this.MoveStationTileList, new_tile_list, AIMap.GetTileIndex(-platform_length + 1, -1), platform_length - 2, 2);
 	tile_list2 = new_tile_list;
-	tile_list2.Valuate(this.HasBuildingRoom2, platform_length);
+	Utils_Valuator.Valuate(tile_list2, this.HasBuildingRoom2, platform_length);
 	tile_list2.KeepValue(1);
 	if (!producing) {
 		tile_list2.Valuate(this.CheckCargoAcceptance2, cargo);
@@ -509,15 +509,15 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 
 	{
 		local test = AITestMode();
-		tile_list.Valuate(Utils_Tile.CanBuildStation, 2, platform_length + 2);
+		Utils_Valuator.Valuate(tile_list, Utils_Tile.CanBuildStation, 2, platform_length + 2);
 		tile_list.KeepAboveValue(0);
-		tile_list.Valuate(Utils_Tile.CanBuildStation, platform_length + 2, 2);
+		Utils_Valuator.Valuate(tile_list, Utils_Tile.CanBuildStation, platform_length + 2, 2);
 		tile_list2.KeepAboveValue(0);
 	}
 
-	tile_list.Valuate(this.TileValuator1, AIIndustry.GetLocation(other_ind), 4, platform_length);
+	Utils_Valuator.Valuate(tile_list, this.TileValuator1, AIIndustry.GetLocation(other_ind), 4, platform_length);
 	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
-	tile_list2.Valuate(this.TileValuator2, AIIndustry.GetLocation(other_ind), 4, platform_length);
+	Utils_Valuator.Valuate(tile_list2, this.TileValuator2, AIIndustry.GetLocation(other_ind), 4, platform_length);
 	tile_list2.Sort(AIAbstractList.SORT_BY_VALUE, true);
 
 	if (tile_list.Count() == 0 && tile_list2.Count() == 0) AILog.Warning("No tiles");

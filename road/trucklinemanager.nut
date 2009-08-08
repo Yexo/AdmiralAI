@@ -225,7 +225,7 @@ function TruckLineManager::Load(data)
 function TruckLineManager::AfterLoad()
 {
 	foreach (route in this._routes) {
-		route._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
+		route._group_id = AIGroup.CreateGroup(AIVehicle.VT_ROAD);
 		route.RenameGroup();
 		route.InitiateAutoReplace();
 	}
@@ -304,7 +304,7 @@ function TruckLineManager::BuildNewLine()
 	foreach (cargo, dummy in cargo_list) {
 		if (!AICargo.IsFreight(cargo)) continue;
 		if (!this._unbuild_routes.rawin(cargo)) continue;
-		local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+		local engine_list = AIEngineList(AIVehicle.VT_ROAD);
 		engine_list.Valuate(AIEngine.GetRoadType);
 		engine_list.KeepValue(AIRoad.ROADTYPE_ROAD);
 		engine_list.Valuate(AIEngine.IsArticulated);
@@ -409,7 +409,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 	                 AIMap.GetTileIndex(1, -1), AIMap.GetTileIndex(1, 1)];
 
 	tile_list.Valuate(AITile.GetOwner);
-	tile_list.RemoveBetweenValue(AICompany.FIRST_COMPANY - 1, AICompany.LAST_COMPANY + 1);
+	tile_list.RemoveBetweenValue(AICompany.COMPANY_FIRST - 1, AICompany.COMPANY_LAST + 1);
 	tile_list.Valuate(Utils_Tile.GetRealHeight);
 	tile_list.KeepAboveValue(0);
 	tile_list.Valuate(AIBase.RandItem);
@@ -481,7 +481,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 	/* We don't want to delete our own tiles (as it could be stations or necesary roads)
 	 * and we can't delete tiles belonging to the competitors. */
 	tile_list.Valuate(AITile.GetOwner);
-	tile_list.RemoveBetweenValue(AICompany.FIRST_COMPANY - 1, AICompany.LAST_COMPANY + 1);
+	tile_list.RemoveBetweenValue(AICompany.COMPANY_FIRST - 1, AICompany.COMPANY_LAST + 1);
 	tile_list.Valuate(Utils_Tile.GetRealHeight);
 	tile_list.KeepAboveValue(0);
 	if (!producing) {
@@ -563,7 +563,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		}
 		if (!AICargo.IsFreight(cargo)) continue;
 		if (!this._unbuild_routes.rawin(cargo)) continue;
-		local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+		local engine_list = AIEngineList(AIVehicle.VT_ROAD);
 		engine_list.Valuate(AIEngine.GetRoadType);
 		engine_list.KeepValue(AIRoad.ROADTYPE_ROAD);
 		engine_list.Valuate(AIEngine.IsArticulated);

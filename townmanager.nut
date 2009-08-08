@@ -235,7 +235,7 @@ function TownManager::PlaceAirport(tile, type, height)
 	if (AIAirport.GetNoiseLevelIncrease(tile, type) > AITown.GetAllowedNoise(this._town_id)) return -2;
 	if (!Utils_Tile.FlattenLandForStation(tile, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type), height)) return -2;
 	/* Check whether the town rating is still good enough. */
-	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	local rating = AITown.GetRating(this._town_id, AICompany.COMPANY_SELF);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_POOR) {
 		/* Rating is not nigh enough. First plant trees on the tiles we will
 		 * build the airport on and then improve further if necessarily. */
@@ -277,13 +277,13 @@ function TownManager::TryBuildAirport(types)
 		}
 		{
 			local test = AITestMode();
-			tile_list.Valuate(Utils_Tile.CanBuildStation, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type));
+			Utils_Valuator.Valuate(tile_list, Utils_Tile.CanBuildStation, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type));
 			tile_list.KeepAboveValue(-1);
 		}
 		if (tile_list.Count() == 0) continue;
 		local list2 = AIList();
 		list2.AddList(tile_list);
-		list2.Valuate(TownManager.AirportLocationValuator, type, AITown.GetLocation(this._town_id));
+		Utils_Valuator.Valuate(list2, TownManager.AirportLocationValuator, type, AITown.GetLocation(this._town_id));
 		list2.Sort(AIAbstractList.SORT_BY_VALUE, true);
 		foreach (t, dummy in list2) {
 			/* With a town rating below AITown.TOWN_RATING_POOR, the town will
@@ -302,7 +302,7 @@ function TownManager::TryBuildAirport(types)
 function TownManager::ImproveTownRating(min_rating)
 {
 	/* Check whether the current rating is good enough. */
-	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	local rating = AITown.GetRating(this._town_id, AICompany.COMPANY_SELF);
 	if (rating == AITown.TOWN_RATING_NONE || rating >= min_rating) return true;
 
 	/* Build trees to improve the rating. We build this tree in an expanding
@@ -317,9 +317,11 @@ function TownManager::ImproveTownRating(min_rating)
 		 * give any town rating improvement. */
 		list.Valuate(AITile.HasTreeOnTile);
 		list.KeepValue(0);
-		list.Valuate(AITile.PlantTree);
+		foreach (tile, dummy in list) {
+			AITile.PlantTree(tile);
+		}
 		/* Check whether the current rating is good enough. */
-		if (AITown.GetRating(this._town_id, AICompany.MY_COMPANY) >= min_rating) return true;
+		if (AITown.GetRating(this._town_id, AICompany.COMPANY_SELF) >= min_rating) return true;
 	}
 
 	/* It was not possible to improve the rating to the requested value. */
@@ -352,7 +354,7 @@ function TownManager::GetDepot(station_manager)
 function TownManager::CanGetStation()
 {
 	if (this._unused_stations.len() > 0) return true;
-	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	local rating = AITown.GetRating(this._town_id, AICompany.COMPANY_SELF);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return false;
 	if (AIDate.GetCurrentDate() - this._station_failed_date < 60) return false;
 	if (max(1, AITown.GetPopulation(this._town_id) / 300) > this._used_stations.len()) return true;
@@ -393,7 +395,7 @@ function TownManager::GetStation()
 	local town_center = AITown.GetLocation(this._town_id);
 	if (this._unused_stations.len() > 0) return this._unused_stations[0];
 	/* We need to build a new station. */
-	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	local rating = AITown.GetRating(this._town_id, AICompany.COMPANY_SELF);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) {
 		AILog.Warning("Town rating: " + rating);
 		AILog.Warning("Town rating is bad, not going to try building a station in " + AITown.GetName(this._town_id));
@@ -454,7 +456,7 @@ function TownManager::GetStation()
 	if (!this.SupportNormalStop(AIRoad.GetCurrentRoadType())) return null;
 
 	/* No drivethrough station could be build, so try a normal station. */
-	rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	rating = AITown.GetRating(this._town_id, AICompany.COMPANY_SELF);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return null;
 	list.Valuate(AIRoad.IsRoadTile);
 	list.KeepValue(0);

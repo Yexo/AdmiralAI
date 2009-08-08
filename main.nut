@@ -51,28 +51,6 @@ require("rail/trainmanager.nut");
 require("rail/railroutebuilder.nut");
 require("rail/trainline.nut");
 
-
-/**
- * @todo
- *  - Inner town routes. Not that important since we have multiple bus stops per town.
- *  - Amount of vehicles build initially should depend not only on distance but also on production.
- *  - optimize rpf estimate function by adding 1 turn and height difference. (could be committed)
- *  - If we can't transport more cargo to a certain station, try to find / build a new station we can transport
- *     the goods to and split it.
- *  - Try to stationwalk.
- *  - Build road stations up or down a hill.
- *  - Check if a station stopped accepting a certain cargo: if so, stop accepting more trucks for that cargo
- *     and send a few of the existing trucks to another destination.
- *  - Try to transport oil from oilrigs to the coast with ships, and then to a refinery with road vehicles. Better
- *     yet would be to directly transport it to oilrigs if distances is small enough, otherwise option 1.
- * @bug
- *  - When building a truck station near a city, connecting it with the road may fail. Either demolish some tiles
- *     or just pathfind from station to other industry, so even though the first part was difficult, a route is build.
- *  - If building a truck station near an industry failed, don't try again. Better yet: pathfind first, if succesfull
- *     try to build a truck station and connect it with the endpoint, if twice successfull (both stations), then build the route
- *  - Don't keep trying to connect a station when pathfinding has already failed a few times (ie a station on an island).
- */
-
 /**
  * The main class of AdmiralAI.
  */
@@ -82,58 +60,39 @@ class AdmiralAI extends AIController
 
 	_passenger_cargo_id = null;        ///< The CargoID of the main passenger cargo.
 	_town_managers = null;             ///< A table mapping TownID to TownManager.
-	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
-	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
-	_aircraft_manager = null; ///< The AircraftManager managing all air routes.
-	_train_manager = null;  ///< The TrainManager managing all train routes.
-	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
-	_save_data = null;      ///< Cache of save data during load.
-	last_vehicle_check = null;
-	last_cash_output = null;
-	last_improve_buslines_date = null;
-	need_vehicle_check = null;
-	sell_stations = null;
-	sell_vehicles = null;
-	_sorted_cargo_list = null;
-	_sorted_cargo_list_updated = null;
+	_truck_manager = null;             ///< The TruckLineManager managing all truck lines.
+	_bus_manager = null;               ///< The BusLineManager managing all bus lines.
+	_aircraft_manager = null;          ///< The AircraftManager managing all air routes.
+	_train_manager = null;             ///< The TrainManager managing all train routes.
+	_pending_events = null;            ///< An array containing [EventType, value] pairs of unhandles events.
+	_save_data = null;                 ///< Cache of save data during load.
+	last_vehicle_check = null;         ///< The last date we checked whether some routes needed more/less vehicles.
+	last_cash_output = null;           ///< The last date we printed the date + current amount of cash to AILog.
+	last_improve_buslines_date = null; ///< The last date we tried to improve our buslines.
+	need_vehicle_check = null;         ///< True if the last vehicle check was aborted due to not having enough money.
+	sell_stations = null;              ///< An array with [StationID, StationType] pairs of stations that need to be removed.
+	sell_vehicles = null;              ///< An AIList with as items VehicleIDs of vehicles we are going to sell.
+	_sorted_cargo_list = null;         ///< An AIList with the best cargo to transport as first item.
+	_sorted_cargo_list_updated = null; ///< The last date we renewed _sorted_cargo_list.
+	station_table = null;              ///< A table mapping StationID to StationManager.
 
 /* public: */
 
 	constructor() {
 		main_instance = this;
-		local cargo_list = AICargoList();
-		cargo_list.Valuate(AICargo.HasCargoClass, AICargo.CC_PASSENGERS);
-		if (cargo_list.Count() == 0) {
-			throw("No passenger cargo found.");
-		}
-		if (cargo_list.Count() > 1) {
-			local town_list = AITownList();
-			town_list.Valuate(AITown.GetPopulation);
-			town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-			local best_cargo = null;
-			local best_cargo_acceptance = 0;
-			foreach (cargo, dummy in cargo_list) {
-				local acceptance = AITile.GetCargoAcceptance(AITown.GetLocation(town_list.Begin()), cargo, 1, 1, 5);
-				if (acceptance > best_cargo_acceptance) {
-					best_cargo_acceptance = acceptance;
-					best_cargo = cargo;
-				}
-			}
-			this._passenger_cargo_id = best_cargo;
-		} else {
-			this._passenger_cargo_id = cargo_list.Begin();
-		}
+		this._passenger_cargo_id = Utils_General.GetPassengerCargoID();
 
 		this._town_managers = {};
 		local town_list = AITownList();
-		foreach (town, dummy in town_list) {
-			this._town_managers.rawset(town, TownManager(town));
+		foreach (town_id, dummy in town_list) {
+			this._town_managers.rawset(town_id, TownManager(town_id));
 		}
 
 		this._truck_manager = TruckLineManager();
 		this._bus_manager = BusLineManager();
 		this._aircraft_manager = AircraftManager();
 		this._train_manager = TrainManager();
+
 		this._pending_events = [];
 
 		this._save_data = null;
@@ -144,7 +103,9 @@ class AdmiralAI extends AIController
 		this.need_vehicle_check = false;
 		this.sell_stations = [];
 		this.sell_vehicles = AIList();
+		this._sorted_cargo_list = null;
 		this._sorted_cargo_list_updated = 0;
+		this.station_table = {};
 	}
 
 	/**
@@ -195,7 +156,14 @@ class AdmiralAI extends AIController
 	 * Try to send all vehicles that will be sold off to a depot. If this fails try
 	 *   to turn a vehicles and then send it again to a depot.
 	 */
-	static function SendVehicleToSellToDepot();
+	function SendVehicleToSellToDepot();
+
+	/**
+	 * Get the StationManager for a station.
+	 * @param station_id The StationID of the station.
+	 * @return The existing StationManager.
+	 */
+	function GetStationManager(station_id);
 
 	/**
 	 * The mainloop.
@@ -203,6 +171,11 @@ class AdmiralAI extends AIController
 	 */
 	function Start();
 };
+
+function AdmiralAI::GetStationManager(station_id)
+{
+	return this.station_table[station_id];
+}
 
 function AdmiralAI::CargoValuator(cargo_id)
 {
@@ -229,7 +202,7 @@ function AdmiralAI::Save()
 	foreach (veh, dummy in this.sell_vehicles) {
 		to_sell.push(veh);
 	}
-	data.rawset("admiralai_version", "17");
+	data.rawset("admiralai_version", "18");
 	data.rawset("vehicles_to_sell", to_sell);
 	data.rawset("stations_to_sell", this.sell_stations);
 	data.rawset("trucklinemanager", this._truck_manager.Save());
@@ -242,15 +215,11 @@ function AdmiralAI::Save()
 	return data;
 }
 
-function AdmiralAI::Load(data)
+function AdmiralAI::Load(version, data)
 {
 	this._save_data = data;
 
-	if (data.rawin("admiralai_version")) {
-		AILog.Info("Loading savegame saved with AdmiralAI " + data.rawget("admiralai_version"));
-	} else {
-		AILog.Warning("Loading savegame saved with AdmiralAI v16.2 or older or with another AI.");
-	}
+	AILog.Info("Loading savegame saved with AdmiralAI " + version);
 
 	if (data.rawin("vehicles_to_sell")) {
 		foreach (v in data.rawget("vehicles_to_sell")) {
@@ -403,19 +372,19 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	this.sell_vehicles.Valuate(AIVehicle.IsValidVehicle);
 	this.sell_vehicles.KeepValue(1);
 	foreach (vehicle, dummy in this.sell_vehicles) {
-		local tile = AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER);
+		local tile = AIOrder.GetOrderDestination(vehicle, AIOrder.ORDER_CURRENT);
 		local dest_is_depot = false;
 		switch (AIVehicle.GetVehicleType(vehicle)) {
-			case AIVehicle.VEHICLE_RAIL:
+			case AIVehicle.VT_RAIL:
 				dest_is_depot = AIRail.IsRailDepotTile(tile);
 				break;
-			case AIVehicle.VEHICLE_ROAD:
+			case AIVehicle.VT_ROAD:
 				dest_is_depot = AIRoad.IsRoadDepotTile(tile);
 				break;
-			case AIVehicle.VEHICLE_WATER:
+			case AIVehicle.VT_WATER:
 				dest_is_depot = AIMarine.IsWaterDepotTile(tile);
 				break;
-			case AIVehicle.VEHICLE_AIR:
+			case AIVehicle.VT_AIR:
 				dest_is_depot = AIAirport.IsHangarTile(tile);
 				break;
 		}
@@ -438,11 +407,11 @@ function AdmiralAI::TransportCargo(cargo, ind)
 function AdmiralAI::UseVehicleType(vehicle_type)
 {
 	switch (vehicle_type) {
-		case "planes": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_AIR) && this.GetSetting("use_planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > 0;
-		case "trains": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_RAIL) && this.GetSetting("use_trains") && AIGameSettings.GetValue("vehicle.max_trains") > 0;
-		case "trucks": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_ROAD) && this.GetSetting("use_trucks") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
-		case "busses": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_ROAD) && this.GetSetting("use_busses") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
-		case "ships":  return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_WATER) && this.GetSetting("use_ships") && AIGameSettings.GetValue("vehicle.max_ships") > 0;
+		case "planes": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_AIR) && this.GetSetting("use_planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > 0;
+		case "trains": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_RAIL) && this.GetSetting("use_trains") && AIGameSettings.GetValue("vehicle.max_trains") > 0;
+		case "trucks": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_ROAD) && this.GetSetting("use_trucks") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
+		case "busses": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_ROAD) && this.GetSetting("use_busses") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
+		case "ships":  return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_WATER) && this.GetSetting("use_ships") && AIGameSettings.GetValue("vehicle.max_ships") > 0;
 	}
 }
 
@@ -461,7 +430,7 @@ function AdmiralAI::DoMaintenance()
 	if (AIDate.GetCurrentDate() - this.last_cash_output > 90) {
 		local curdate = AIDate.GetCurrentDate();
 		AILog.Info("Current date: " + AIDate.GetYear(curdate) + "-" + AIDate.GetMonth(curdate) + "-" + AIDate.GetDayOfMonth(curdate));
-		AILog.Info("Cash - loan: " + AICompany.GetBankBalance(AICompany.MY_COMPANY) + " - " + AICompany.GetLoanAmount());
+		AILog.Info("Cash - loan: " + AICompany.GetBankBalance(AICompany.COMPANY_SELF) + " - " + AICompany.GetLoanAmount());
 		this.last_cash_output = AIDate.GetCurrentDate();
 	}
 	Utils_General.GetMoney(200000);
@@ -480,7 +449,9 @@ function AdmiralAI::DoMaintenance()
 	local removed = [];
 	foreach (idx, pair in this.sell_stations) {
 		local tiles = AITileList_StationType(pair[0], pair[1]);
-		tiles.Valuate(AITile.DemolishTile);
+		foreach (tile, dummy in tiles) {
+			AITile.DemolishTile(tile);
+		}
 		tiles.Valuate(AITile.IsStationTile);
 		tiles.KeepValue(0);
 		if (!AIStation.IsValidStation(pair[0]) || tiles.Count() == 0) {
@@ -503,9 +474,9 @@ function AdmiralAI::Start()
 	}
 	local start_tick = this.GetTick();
 
-	if (AICompany.GetName(AICompany.MY_COMPANY).find("AdmiralAI") == null) {
+	if (AICompany.GetName(AICompany.COMPANY_SELF).find("AdmiralAI") == null) {
 		Utils_General.SetCompanyName(Utils_Array.RandomReorder(["AdmiralAI"]));
-		AILog.Info(AICompany.GetName(AICompany.MY_COMPANY) + " has just started!");
+		AILog.Info(AICompany.GetName(AICompany.COMPANY_SELF) + " has just started!");
 	}
 
 	AIGroup.EnableWagonRemoval(true);
@@ -551,29 +522,29 @@ function AdmiralAI::Start()
 		if (AIRoad.IsRoadTypeAvailable(last_type)) AIRoad.SetCurrentRoadType(last_type);
 		local build_route = false;
 		Utils_General.GetMoney(200000);
-		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 390000) {
+		if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) >= 390000) {
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
-			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
+			veh_list.KeepValue(AIVehicle.VT_AIR);
 			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count()) {
 				build_route = this._aircraft_manager.BuildNewRoute();
 				Utils_General.GetMoney(200000);
 			}
 			veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
-			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
+			veh_list.KeepValue(AIVehicle.VT_RAIL);
 			if (this.UseVehicleType("trains") && AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count()) {
 				build_route = this._train_manager.BuildNewRoute() || build_route;
 			}
 			build_road_route = 3;
-		} else if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 180000) {
+		} else if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) >= 180000) {
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
-			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
+			veh_list.KeepValue(AIVehicle.VT_RAIL);
 			local new_train_route = this.UseVehicleType("trains") && AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count();
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
-			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
+			veh_list.KeepValue(AIVehicle.VT_AIR);
 			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count()) {
 				if (new_train_route && AIBase.RandRange(2) == 0) {
 					build_route = this._train_manager.BuildNewRoute();
@@ -588,9 +559,9 @@ function AdmiralAI::Start()
 		Utils_General.GetMoney(200000);
 		local veh_list = AIVehicleList();
 		veh_list.Valuate(AIVehicle.GetVehicleType);
-		veh_list.KeepValue(AIVehicle.VEHICLE_ROAD);
+		veh_list.KeepValue(AIVehicle.VT_ROAD);
 		if (!build_route && build_road_route > 0 && AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
-			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000) {
+			if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) >= 30000) {
 				if (build_busses) {
 					if (this.UseVehicleType("busses")) build_route = this._bus_manager.NewLineExistingRoad();
 					if (this.UseVehicleType("trucks") && !build_route) build_route = this._truck_manager.NewLineExistingRoad();
@@ -599,7 +570,7 @@ function AdmiralAI::Start()
 					if (this.UseVehicleType("busses") && !build_route) build_route = this._bus_manager.NewLineExistingRoad();
 				}
 			}
-			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000) {
+			if (!build_route && AICompany.GetBankBalance(AICompany.COMPANY_SELF) >= 80000) {
 				if (build_busses) {
 					if (this.UseVehicleType("busses")) build_route = this._bus_manager.BuildNewLine();
 					if (this.UseVehicleType("trucks") && !build_route) build_route = this._truck_manager.BuildNewLine();
@@ -614,7 +585,7 @@ function AdmiralAI::Start()
 		}
 		Utils_General.GetMoney(200000);
 		if (this.GetSetting("build_statues")) {
-			if (AICompany.GetLoanAmount() == 0 && AICompany.GetBankBalance(AICompany.MY_COMPANY) > 200000) {
+			if (AICompany.GetLoanAmount() == 0 && AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 200000) {
 				local town_list = AITownList();
 				town_list.Valuate(AITown.HasStatue);
 				town_list.RemoveValue(1);
