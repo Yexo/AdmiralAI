@@ -143,8 +143,8 @@ function BusLineManager::AfterLoad()
 				continue;
 			}
 			/* New BusLine from station_a to station_b. */
-			local station_manager_a = StationManager(station_a, null);
-			local station_manager_b = StationManager(station_b, null);
+			local station_manager_a = StationManager(station_a);
+			local station_manager_b = StationManager(station_b);
 			local depot_list = AIDepotList(AITile.TRANSPORT_ROAD);
 			depot_list.Valuate(AIMap.DistanceManhattan, AIStation.GetLocation(station_a));
 			depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);

@@ -263,8 +263,28 @@ function StationManager::RemoveBusses(num, distance, speed)
 	this._bus_points -= num * points_per_bus;
 }
 
+function StationManager::AfterLoadSetRailType(rail_type)
+{
+	if (rail_type == null) {
+		local tile_list = AITileList_StationType(this._station_id, AIStation.STATION_TRAIN);
+		rail_type = AIRail.GetRailType(tile_list.Begin());
+	}
+	assert(rail_type != null);
+	if (this._rail_type == null) {
+		this._rail_type = rail_type;
+		return;
+	}
+	if (AIRail.TrainHasPowerOnRail(rail_type, this._rail_type)) return;
+
+	this._rail_type = rail_type;
+}
+
 function StationManager::ConvertRailType(rail_type)
 {
+	if (this._rail_type == null) {
+		AILog.Info("Station: " + AIStation.GetName(this._station_id));
+		AILog.Info("New rail type: " + rail_type);
+	}
 	assert(this._rail_type != null);
 	if (!AIRail.TrainHasPowerOnRail(this._rail_type, rail_type)) return false;
 	if (this._rail_type == rail_type) return true;

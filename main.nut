@@ -214,7 +214,7 @@ function AdmiralAI::GetSortedCargoList()
 	if (AIDate.GetCurrentDate() - this._sorted_cargo_list_updated > 200) {
 		this._sorted_cargo_list = AICargoList();
 		this._sorted_cargo_list.Valuate(AdmiralAI.CargoValuator);
-		this._sorted_cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		this._sorted_cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	}
 	return this._sorted_cargo_list;
 }
@@ -228,6 +228,7 @@ function AdmiralAI::Save()
 	foreach (veh, dummy in this.sell_vehicles) {
 		to_sell.push(veh);
 	}
+	data.rawset("admiralai_version", "16.4");
 	data.rawset("vehicles_to_sell", to_sell);
 	data.rawset("stations_to_sell", this.sell_stations);
 	data.rawset("trucklinemanager", this._truck_manager.Save());
@@ -243,6 +244,12 @@ function AdmiralAI::Save()
 function AdmiralAI::Load(data)
 {
 	this._save_data = data;
+
+	if (data.rawin("admiralai_version")) {
+		AILog.Info("Loading savegame saved with AdmiralAI " + data.rawget("admiralai_version"));
+	} else {
+		AILog.Warning("Loading savegame saved with AdmiralAI v16.2 or older or with another AI.");
+	}
 
 	if (data.rawin("vehicles_to_sell")) {
 		foreach (v in data.rawget("vehicles_to_sell")) {

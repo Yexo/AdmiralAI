@@ -36,10 +36,33 @@ class RailRouteBuilder
 	 *  - -2 If the AI didn't have enough money to build the route.
 	 */
 	static function ConnectRailStations(station_a, station_b);
+
+	/**
+	 * Determine the platform length of a train station.
+	 * @param station The StationID of the station.
+	 * @return The length in tiles of the station.
+	 */
+	static function DetectPlatformLength(station);
+
+	/**
+	 * Build a few track tiles connecting the station to
+	 *  incoming/outgoing rails.
+	 * @param tile TODO: what is this?
+	 * @param start_tile TODO: what is this?
+	 * @param platform_length The length of one platform in tiles.
+	 * @param second_station Is this a pickup or a drop station?
+	 * @return Whether the track building succeeded.
+	 * @note: if this function returns false, the station + nearby
+	 *  are in an unknown state, so they should be deleted.
+	 */
+	static function BuildTrackNearStation(tile, start_tile, platform_length, second_station);
 };
 
 function RailRouteBuilder::DetectPlatformLength(station)
 {
+	/* TODO: make this function work when AIStation.GetLocation doesn't
+	 * return a rail tile or returns a rail tile in the middle of the
+	 * platform. */
 	local tile = AIStation.GetLocation(station);
 	local length = 0;
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
@@ -48,6 +71,7 @@ function RailRouteBuilder::DetectPlatformLength(station)
 			length++;
 			tile += AIMap.GetTileIndex(0, 1);
 		}
+		/* TODO: Remove this ugly hack. */
 		length -= 2;
 		if (((!AIRail.IsRailStationTile(tile_before)) && AICompany.IsMine(AITile.GetOwner(tile_before)) && AIRail.IsRailTile(tile_before) &&
 				(AIRail.GetRailTracks(tile_before) & AIRail.RAILTRACK_NW_SE) != 0) ||
@@ -558,12 +582,14 @@ function ConnectDepotDiagonal(tile_a, tile_b, tile_c)
 		tiles.append([tile_b + offset2, tile_c, tile_c + offset1]);
 	} else if (AITile.IsBuildable(tile_c + offset2)) {
 		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
-			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tilec)))) return null;
+			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tile_c)))) return null;
 		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
-			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tilec)))) return null;
+			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tile_c)))) return null;
 		depot_tile = tile_c + offset2;
 		tiles.append([tile_a + offset1, tile_c, tile_c + offset2]);
 		tiles.append([tile_b + offset2, tile_c, tile_c + offset2]);
+	} else {
+		return null;
 	}
 	{
 		local test = AITestMode();
@@ -648,25 +674,21 @@ function RailRouteBuilder::BuildDepot(path, reverse)
 					}
 					if (AIRail.BuildRailDepot(ppp + offset, ppp)) return ppp + offset;
 				}
-			} else if (ppppp - ppp == ppp - prev) {
+			} else if (ppppp - ppp == ppp - prev && ppppp - pppp != pp - prev) {
 				local offsets = null;
 				if (abs(ppppp - ppp) == AIMap.GetTileIndex(1, 1)) {
 					if (ppppp - pppp == AIMap.GetTileIndex(1, 0) || prev - pp == AIMap.GetTileIndex(1, 0)) {
-						AILog.Warning("    1111");
 						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(-2, 0));
 						if (d != null) return d;
 					} else {
-						AILog.Warning("    2222");
 						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(0, -2));
 						if (d != null) return d;
 					}
 				} else {
 					if (ppppp - pppp == AIMap.GetTileIndex(0, -1) || prev - pp == AIMap.GetTileIndex(0, -1)) {
-						AILog.Warning("    3333");
 						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(2, 0));
 						if (d != null) return d;
 					} else {
-						AILog.Warning("    4444");
 						local d = ConnectDepotDiagonal(prev, ppppp, max(prev, ppppp) + AIMap.GetTileIndex(0, -2));
 						if (d != null) return d;
 					}

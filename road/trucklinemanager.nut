@@ -313,7 +313,8 @@ function TruckLineManager::BuildNewLine()
 			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) {
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
-			if (AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / AIIndustry.GetLastMonthProduction(ind_from, cargo) > 65) continue;
+			local last_production = AIIndustry.GetLastMonthProduction(ind_from, cargo);
+			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(50, 250);
@@ -572,7 +573,8 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) {
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
-			if (AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / AIIndustry.GetLastMonthProduction(ind_from, cargo) > 65) continue;
+			local last_production = AIIndustry.GetLastMonthProduction(ind_from, cargo);
+			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
 			local prod = AIIndustry.GetLastMonthProduction(ind_from, cargo) - AIIndustry.GetLastMonthTransported(ind_from, cargo);
 			val_list.AddItem(ind_from, prod + AIBase.RandRange(prod));
 		}

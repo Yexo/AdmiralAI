@@ -135,7 +135,9 @@ function TrainManager::Load(data)
 			foreach (man_info in manager_array) {
 				local man = StationManager(man_info[0]);
 				man.SetCargoDrop(false);
+				man.AfterLoadSetRailType(null);
 				new_man_array.push([man, man_info[1]]);
+				if (!man_info[1]) AILog.Info("Load station near: " + AIIndustry.GetName(ind) + ", station = " + AIStation.GetName(man_info[0]));
 			}
 			this._ind_to_pickup_stations.rawset(ind, new_man_array);
 		}
@@ -147,6 +149,7 @@ function TrainManager::Load(data)
 			foreach (man_info in manager_array) {
 				local man = StationManager(man_info[0]);
 				man.SetCargoDrop(true);
+				man.AfterLoadSetRailType(null);
 				new_man_array.push([man, man_info[1]]);
 			}
 			this._ind_to_drop_stations.rawset(ind, new_man_array);
@@ -171,6 +174,8 @@ function TrainManager::Load(data)
 			}
 			if (station_from == null || station_to == null) continue;
 			local route = TrainLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true, route_array[6], route_array[7]);
+			station_from.AfterLoadSetRailType(route_array[7]);
+			station_to.AfterLoadSetRailType(route_array[7]);
 			this._routes.push(route);
 			if (this._unbuild_routes.rawin(route_array[5])) {
 				foreach (ind, dummy in this._unbuild_routes[route_array[5]]) {
@@ -289,8 +294,8 @@ function TrainManager::BuildNewRoute()
 
 		rail_type_list.Valuate(TrainManager.RailTypeValuator, cargo);
 		rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-		/* If there is no railtype with a possible train, return. */
-		if (rail_type_list.GetValue(rail_type_list.Begin()) == -1) return false;
+		/* If there is no railtype with a possible train, try another cargo type. */
+		if (rail_type_list.Count() == 0) continue;
 		AIRail.SetCurrentRailType(rail_type_list.Begin());
 
 		local val_list = AIList();
@@ -299,7 +304,8 @@ function TrainManager::BuildNewRoute()
 			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) {
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
-			if (AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / AIIndustry.GetLastMonthProduction(ind_from, cargo) > 65) continue;
+			local last_production = AIIndustry.GetLastMonthProduction(ind_from, cargo);
+			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
 			local prod = AIIndustry.GetLastMonthProduction(ind_from, cargo) - AIIndustry.GetLastMonthTransported(ind_from, cargo);
 			val_list.AddItem(ind_from, prod + AIBase.RandRange(prod));
 		}
