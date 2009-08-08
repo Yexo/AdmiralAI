@@ -159,7 +159,7 @@ function TruckLineManager::Save()
 
 	foreach (route in this._routes) {
 		if (!route._valid) continue;
-		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tile, route._cargo]);
+		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tile, route._cargo, route._engine_id]);
 	}
 
 	return data;
@@ -205,6 +205,7 @@ function TruckLineManager::Load(data)
 			}
 			if (station_from == null || station_to == null) continue;
 			local route = TruckLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true);
+			route._engine_id = route_array[6];
 			route.ScanPoints();
 			this._routes.push(route);
 			if (this._unbuild_routes.rawin(route_array[5])) {
@@ -318,11 +319,16 @@ function TruckLineManager::BuildNewLine()
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
 			local last_production = AIIndustry.GetLastMonthProduction(ind_from, cargo);
-			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
+			local last_transportation = AIIndustry.GetLastMonthTransported(ind_from, cargo);
+			if (last_production == 0) continue;
+			/* Don't try to transport goods from industries that are serviced very well. */
+			if (AdmiralAI.GetMaxCargoPercentTransported(AITile.GetClosestTown(AIIndustry.GetLocation(ind_from))) < 100 * last_transportation / last_production) continue;
+			/* Serviced industries with very low production are not interesting. */
+			if (last_production < 100 && last_transportation > 0) continue;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(this._min_distance, this._max_distance_new_route);
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local list_from = AITileList();
 				Utils_Tile.AddSquare(list_from, AIIndustry.GetLocation(ind_from), 6);
@@ -415,7 +421,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 	tile_list.Valuate(Utils_Tile.GetRealHeight);
 	tile_list.KeepAboveValue(0);
 	tile_list.Valuate(AIBase.RandItem);
-	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 	foreach (tile, dummy in tile_list) {
 		local can_build = true;
 		foreach (offset in diagoffsets) {
@@ -491,7 +497,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 		tile_list.KeepAboveValue(7);
 	}
 	tile_list.Valuate(AIBase.RandItem);
-	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, producing);
+	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, producing ? AIAbstractList.SORT_ASCENDING : AIAbstractList.SORT_DESCENDING);
 	foreach (tile, dummy in tile_list) {
 		local can_build = true;
 		foreach (offset in diagoffsets) {
@@ -581,11 +587,16 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
 			local last_production = AIIndustry.GetLastMonthProduction(ind_from, cargo);
-			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
-			local prod = AIIndustry.GetLastMonthProduction(ind_from, cargo) - AIIndustry.GetLastMonthTransported(ind_from, cargo);
-			val_list.AddItem(ind_from, prod + AIBase.RandRange(prod));
+			local last_transportation = AIIndustry.GetLastMonthTransported(ind_from, cargo);
+			if (last_production == 0) continue;
+			/* Don't try to transport goods from industries that are serviced very well. */
+			if (AdmiralAI.GetMaxCargoPercentTransported(AITile.GetClosestTown(AIIndustry.GetLocation(ind_from))) < 100 * last_transportation / last_production) continue;
+			/* Serviced industries with very low production are not interesting. */
+			if (last_production < 100 && last_transportation > 0) continue;
+			local free_production = last_production - last_transportation;
+			val_list.AddItem(ind_from, free_production + AIBase.RandRange(free_production));
 		}
-		val_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		val_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 
 		foreach (ind_from, dummy in val_list) {
 			if (ind_from_skipped < this._skip_ind_from && do_skip) {
@@ -595,7 +606,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(this._min_distance, this._max_distance_existing_route);
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 			foreach (ind_to, dummy in ind_acc_list) {
 				if (ind_to_skipped < this._skip_ind_to && do_skip) {
 					ind_to_skipped++;
@@ -653,7 +664,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				town_list.KeepAboveValue(min_town_pop);
 				town_list.Valuate(AITown.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 				town_list.KeepBetweenValue(50, 400);
-				town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+				town_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 				foreach (town, distance in town_list) {
 					local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AITown.GetLocation(town), 8);
 					if (route == null) continue;

@@ -19,9 +19,6 @@
 
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
 
-main_instance <- null;
-//local main_instance;
-
 import("queue.fibonacci_heap", "FibonacciHeap", 1);
 
 require("utils/airport.nut");
@@ -35,6 +32,9 @@ require("stationmanager.nut");
 require("townmanager.nut");
 require("aystar.nut");
 
+require("network/point.nut");
+require("network/graph.nut");
+
 require("air/aircraftmanager.nut");
 
 require("road/rpf.nut");
@@ -45,6 +45,7 @@ require("road/busline.nut");
 require("road/truckline.nut");
 require("road/buslinemanager.nut");
 require("road/trucklinemanager.nut");
+require("road/roadnetwork.nut");
 
 require("rail/railpathfinder.nut");
 require("rail/railfollower.nut");
@@ -67,6 +68,7 @@ class AdmiralAI extends AIController
 	_train_manager = null;             ///< The TrainManager managing all train routes.
 	_pending_events = null;            ///< An array containing [EventType, value] pairs of unhandles events.
 	_save_data = null;                 ///< Cache of save data during load.
+	_save_version = null;              ///< Cache of version the save data was saved with.
 	last_vehicle_check = null;         ///< The last date we checked whether some routes needed more/less vehicles.
 	last_cash_output = null;           ///< The last date we printed the date + current amount of cash to AILog.
 	last_improve_buslines_date = null; ///< The last date we tried to improve our buslines.
@@ -79,8 +81,21 @@ class AdmiralAI extends AIController
 
 /* public: */
 
-	constructor() {
-		main_instance = this;
+	constructor()
+	{
+		::main_instance <- this;
+		/* Introduce a constant for sorting AILists here, it may be in the api later.
+		 * This needs to be done here, before any instance of it is made. */
+		AIAbstractList.SORT_ASCENDING <- true;
+		AIAbstractList.SORT_DESCENDING <- false;
+	}
+
+	/**
+	 * Initialize all 'global' variables. Since there is a limit on the time the constructor
+	 * can take we don't do this in the constructor.
+	 */
+	function Init()
+	{
 		this._passenger_cargo_id = Utils_General.GetPassengerCargoID();
 
 		this._town_managers = {};
@@ -97,6 +112,7 @@ class AdmiralAI extends AIController
 		this._pending_events = [];
 
 		this._save_data = null;
+		this._save_version = null;
 
 		this.last_vehicle_check = 0;
 		this.last_cash_output = AIDate.GetCurrentDate();
@@ -110,6 +126,20 @@ class AdmiralAI extends AIController
 	}
 
 	/**
+	 * Get the StationManager for a certain station. If there is no
+	 * StationManager yet for that station, create one.
+	 * @param station_id The StationID to get the StationManager for.
+	 * @return The StationManager for the station.
+	 */
+	function GetStationManager(station_id);
+
+	/**
+	 * Get an AIList with all CargoIDs sorted by profitability.
+	 * @return An AIList with all valid CargoIDs.
+	 */
+	function GetSortedCargoList();
+
+	/**
 	 * Save all data we need to be able to resume later.
 	 * @return A table containing all data that needs to be saved.
 	 * @note This is called by OpenTTD, no need to call from within the AI.
@@ -117,12 +147,17 @@ class AdmiralAI extends AIController
 	function Save();
 
 	/**
-	 * Try to resume given the data in the savegame.
+	 * Store the savegame data we get.
+	 * @param version The version of this AI that was used to save the game.
 	 * @param data The data that was stored by Save().
-	 * @note The data might have been saved by another AI, so check all
-	 *   values for sanity. Don't asume the savegame data is from this AI.
+	 * @note This is called by OpenTTD, no need to call from within the AI.
 	 */
-	function Load(data);
+	function Load(version, data);
+
+	/**
+	 * Use the savegame data to reconstruct as much state as possible.
+	 */
+	function CallLoad();
 
 	/**
 	 * Get all events from AIEventController and store them in an
@@ -160,17 +195,57 @@ class AdmiralAI extends AIController
 	function SendVehicleToSellToDepot();
 
 	/**
-	 * Get the StationManager for a station.
-	 * @param station_id The StationID of the station.
-	 * @return The existing StationManager.
+	 * Message all VehicleManagers that some cargo is transported from
+	 * some industry. This is to make sure we don't create both a truck
+	 * and a train line for the same cargo.
+	 * @param cargo The transported CargoID.
+	 * @param ind The IndustryID of the source industry.
 	 */
-	function GetStationManager(station_id);
+	function TransportCargo(cargo, ind);
+
+	/**
+	 * Are we allowed to use a given VehicleType? This functions checks
+	 * several settings:
+	 * 1. Is the vehicle disabled via the global AI settings.
+	 * 2. Is the use of this type disabled via the AI specific options.
+	 * 3. Are more than 0 units of this type allowed.
+	 * @param vehicle_type The VehicleType to check.
+	 * @return True if we can use this vehicle type.
+	 */
+	static function UseVehicleType(vehicle_type);
+
+	/**
+	 * Check if there is at least one supported vehicle type available.
+	 * @return True iff there is at least one vehicle type available.
+	 */
+	static function SomeVehicleTypeAvailable();
+
+	/**
+	 * Do some general maintenance. This happens in several steps:
+	 * 1. All events are handled (@see HandleEvents).
+	 * 2. All vehicles that will be sold are sent do a depot.
+	 * 3. Every 90 days the current loan/bank amount is logged.
+	 * 4. Every 200 days the buslines are improved (@see BusLine::ImproveLines).
+	 * 5. Every 11 days all routes are checked whether they need more/less vehicles.
+	 * 6. All stations that should be sold are sold now.
+	 */
+	function DoMaintenance();
 
 	/**
 	 * The mainloop.
 	 * @note This is called by OpenTTD, no need to call from within the AI.
 	 */
 	function Start();
+
+/* private: */
+
+	/**
+	 * Valuator for cargos. It returns the profit over a certain distance
+	 * multiplied by a random value between 1 and 1,2.
+	 * @param cargo_id The cargo to get the profit of.
+	 * @return The profit for the given cargo.
+	 */
+	static function CargoValuator(cargo_id);
 };
 
 function AdmiralAI::GetStationManager(station_id)
@@ -183,10 +258,10 @@ function AdmiralAI::GetStationManager(station_id)
 	return this.station_table.rawget(station_id);
 }
 
-function AdmiralAI::CargoValuator(cargo_id)
+/* static */ function AdmiralAI::CargoValuator(cargo_id)
 {
 	local val = AICargo.GetCargoIncome(cargo_id, 80, 40);
-	return val + (AIBase.RandRange(val) / 5);
+	return val + (AIBase.RandRange(val) / 3);
 }
 
 function AdmiralAI::GetSortedCargoList()
@@ -194,14 +269,22 @@ function AdmiralAI::GetSortedCargoList()
 	if (AIDate.GetCurrentDate() - this._sorted_cargo_list_updated > 200) {
 		this._sorted_cargo_list = AICargoList();
 		this._sorted_cargo_list.Valuate(AdmiralAI.CargoValuator);
-		this._sorted_cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		this._sorted_cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	}
 	return this._sorted_cargo_list;
 }
 
+function AdmiralAI::GetMaxCargoPercentTransported(town_id)
+{
+	return 60;
+}
+
 function AdmiralAI::Save()
 {
-	if (this._save_data != null) return this._save_data;
+	if (this._save_data != null) {
+		this._save_data.rawset("version", this._save_version);
+		return this._save_data;
+	}
 
 	local data = {};
 	local to_sell = [];
@@ -223,8 +306,15 @@ function AdmiralAI::Save()
 function AdmiralAI::Load(version, data)
 {
 	this._save_data = data;
+	this._save_version = version;
+	if (data.rawin("version")) this._save_version = data.rawget("version").tointeger();
+}
 
-	AILog.Info("Loading savegame saved with AdmiralAI " + version);
+function AdmiralAI::CallLoad()
+{
+	if (this._save_data == null) return;
+
+	AILog.Info("Loading savegame saved with AdmiralAI " + this._save_version);
 
 	if (data.rawin("vehicles_to_sell")) {
 		foreach (v in data.rawget("vehicles_to_sell")) {
@@ -271,7 +361,7 @@ function AdmiralAI::GetEvents()
 	}
 }
 
-function AdmiralAI::ScanForDepot(roadtile)
+/* static */ function AdmiralAI::ScanForDepot(roadtile)
 {
 	local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),
 	                 AIMap.GetTileIndex(1,0), AIMap.GetTileIndex(-1,0)];
@@ -294,7 +384,7 @@ function AdmiralAI::ScanForDepot(roadtile)
 	return null;
 }
 
-function AdmiralAI::BuildDepot(roadtile)
+/* static */ function AdmiralAI::BuildDepot(roadtile)
 {
 	local depot = AdmiralAI.ScanForDepot(roadtile);
 	if (depot != null) return depot;
@@ -379,7 +469,7 @@ function AdmiralAI::SendVehicleToSellToDepot()
 				dest_is_depot = AIMarine.IsWaterDepotTile(tile);
 				break;
 			case AIVehicle.VT_AIR:
-				dest_is_depot = AIAirport.IsHangarTile(tile);
+				dest_is_depot = AIAirport.IsAirportTile(tile) && AIOrder.GetOrderFlags(vehicle, AIOrder.ORDER_CURRENT) == 1;
 				break;
 		}
 		if (!dest_is_depot) {
@@ -401,21 +491,21 @@ function AdmiralAI::TransportCargo(cargo, ind)
 	::main_instance._train_manager.TransportCargo(cargo, ind);
 }
 
-function AdmiralAI::UseVehicleType(vehicle_type)
+/* static */ function AdmiralAI::UseVehicleType(vehicle_type)
 {
 	switch (vehicle_type) {
-		case "planes": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_AIR) && this.GetSetting("use_planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > 0;
-		case "trains": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_RAIL) && this.GetSetting("use_trains") && AIGameSettings.GetValue("vehicle.max_trains") > 0;
-		case "trucks": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_ROAD) && this.GetSetting("use_trucks") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
-		case "busses": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_ROAD) && this.GetSetting("use_busses") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
-		case "ships":  return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_WATER) && this.GetSetting("use_ships") && AIGameSettings.GetValue("vehicle.max_ships") > 0;
+		case "planes": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_AIR) && AIController.GetSetting("use_planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > 0;
+		case "trains": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_RAIL) && AIController.GetSetting("use_trains") && AIGameSettings.GetValue("vehicle.max_trains") > 0;
+		case "trucks": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_ROAD) && AIController.GetSetting("use_trucks") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
+		case "busses": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_ROAD) && AIController.GetSetting("use_busses") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
+		case "ships":  return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VT_WATER) && AIController.GetSetting("use_ships") && AIGameSettings.GetValue("vehicle.max_ships") > 0;
 	}
 }
 
-function AdmiralAI::SomeVehicleTypeAvailable()
+/* static */ function AdmiralAI::SomeVehicleTypeAvailable()
 {
-	return this.UseVehicleType("planes") || this.UseVehicleType("trains") ||
-		this.UseVehicleType("trucks") || this.UseVehicleType("busses");
+	return AdmiralAI.UseVehicleType("planes") || AdmiralAI.UseVehicleType("trains") ||
+		AdmiralAI.UseVehicleType("trucks") || AdmiralAI.UseVehicleType("busses");
 	/* TODO: add ships here as soon as support for them is implemented. */
 }
 
@@ -440,8 +530,9 @@ function AdmiralAI::DoMaintenance()
 		local ret1 = this._bus_manager.CheckRoutes();
 		local ret2 = this._truck_manager.CheckRoutes();
 		local ret3 = this._train_manager.CheckRoutes();
+		local ret4 = this._aircraft_manager.CheckRoutes();
 		this.last_vehicle_check = AIDate.GetCurrentDate();
-		this.need_vehicle_check = ret1 || ret2 || ret3;
+		this.need_vehicle_check = ret1 || ret2 || ret3 || ret4;
 	}
 	local removed = [];
 	foreach (idx, pair in this.sell_stations) {
@@ -451,7 +542,7 @@ function AdmiralAI::DoMaintenance()
 		}
 		if (!AIStation.IsValidStation(pair[0])) {
 			removed.append(idx);
-			this.station_managers.rawdelete(pair[0]);
+			this.station_table.rawdelete(pair[0]);
 		}
 	}
 	for (local i = removed.len() - 1; i >= 0; i--) {
@@ -461,14 +552,21 @@ function AdmiralAI::DoMaintenance()
 
 function AdmiralAI::Start()
 {
+	/* Check if the names of some settings are valid. Of course this isn't
+	 * completely failsafe, as the meaning could be changed but not the name,
+	 * but it'll catch some problems. */
 	Utils_General.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "vehicle.max_ships",
 		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment", "vehicle.wagon_speed_limits"]);
+	/* Call our real constructor here to prevent 'is taking too long to load' errors. */
+	this.Init();
+	/* Use the savegame data (if any) to reconstruct as much state as possible. */
+	this.CallLoad();
 	if (!this.SomeVehicleTypeAvailable()) {
 		AILog.Error("No supported vehicle type is available.");
 		AILog.Error("Quitting.");
 		return;
 	}
-	local start_tick = this.GetTick();
+	local start_tick = AIController.GetTick();
 
 	if (AICompany.GetName(AICompany.COMPANY_SELF).find("AdmiralAI") == null) {
 		Utils_General.SetCompanyName(Utils_Array.RandomReorder(["AdmiralAI"]));
@@ -477,7 +575,7 @@ function AdmiralAI::Start()
 
 	AIGroup.EnableWagonRemoval(true);
 
-	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1 || this.GetSetting("always_autorenew")) {
+	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1 || AIController.GetSetting("always_autorenew")) {
 		AILog.Info("Breakdowns are on or the setting always_autorenew is on, so enabling autorenew");
 		AICompany.SetAutoRenewMonths(-3);
 		AICompany.SetAutoRenewStatus(true);
@@ -507,11 +605,11 @@ function AdmiralAI::Start()
 	local last_type = AIRoad.ROADTYPE_ROAD;
 	AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
 	/* Before starting the main loop, sleep a bit to prevent problems with ecs */
-	this.Sleep(max(1, 260 - (this.GetTick() - start_tick)));
+	AIController.Sleep(max(1, 260 - (AIController.GetTick() - start_tick)));
 	while(1) {
 		this.DoMaintenance();
 		if (this.need_vehicle_check) {
-			this.Sleep(20);
+			AIController.Sleep(20);
 			continue;
 		}
 		last_type = last_type == AIRoad.ROADTYPE_ROAD ? AIRoad.ROADTYPE_TRAM : AIRoad.ROADTYPE_ROAD;
@@ -580,7 +678,7 @@ function AdmiralAI::Start()
 			if (build_route) build_road_route--;
 		}
 		Utils_General.GetMoney(200000);
-		if (this.GetSetting("build_statues")) {
+		if (AIController.GetSetting("build_statues")) {
 			if (AICompany.GetLoanAmount() == 0 && AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 200000) {
 				local town_list = AITownList();
 				town_list.Valuate(AITown.HasStatue);
@@ -595,7 +693,7 @@ function AdmiralAI::Start()
 				}
 				town_list.KeepAboveValue(0);
 				if (town_list.Count() > 0) {
-					town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+					town_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 					local town = town_list.Begin();
 					if (AITown.PerformTownAction(town, AITown.TOWN_ACTION_BUILD_STATUE)) {
 						AILog.Info("Build a statue in " + AITown.GetName(town));
@@ -604,7 +702,6 @@ function AdmiralAI::Start()
 			}
 		}
 		Utils_General.GetMoney(200000);
-		this.Sleep(10);
+		AIController.Sleep(10);
 	}
 };
-

@@ -107,6 +107,11 @@ class AyStar
 	 *  which is an indication it is not yet done looking for a route.
 	 */
 	function FindPath(iterations);
+
+	/**
+	 * Internal function used to clean up all data after pathfinding is finished.
+	 */
+	function _CleanPath();
 };
 
 /**
@@ -192,7 +197,7 @@ function AyStar::FindPath(iterations)
 {
 	if (this._open == null) throw("can't execute over an uninitialized path");
 
-	local begin_tick = main_instance.GetTick();
+	local begin_tick = AIController.GetTick();
 	local num_iterations = 0;
 	while (this._open.Count() > 0 && (iterations == -1 || iterations-- > 0)) {
 		num_iterations++;
@@ -203,6 +208,21 @@ function AyStar::FindPath(iterations)
 		if (this._closed.HasItem(cur_tile)) {
 			/* If the direction is already on the list, skip this entry */
 			if ((this._closed.GetValue(cur_tile) & path.GetDirection()) != 0) continue;
+
+			/* Scan the path for a possible collision */
+			local scan_path = path.GetParent();
+
+			local mismatch = false;
+			while (scan_path != null) {
+				if (scan_path.GetTile() == cur_tile) {
+					if (!this._check_direction_callback(cur_tile, scan_path.GetDirection(), path.GetDirection(), this._check_direction_callback_param)) {
+						mismatch = true;
+						break;
+					}
+				}
+				scan_path = scan_path.GetParent();
+			}
+			if (mismatch) continue;
 
 			/* Add the new direction */
 			this._closed.SetValue(cur_tile, this._closed.GetValue(cur_tile) | path.GetDirection());
@@ -218,7 +238,7 @@ function AyStar::FindPath(iterations)
 					foreach (node in neighbours) {
 						if (node[0] == goal[1]) {
 							this._CleanPath();
-							if (num_iterations > 5000) AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+							if (num_iterations > 5000) AILog.Warning("Path found in " + num_iterations + " (" + (AIController.GetTick() - begin_tick) + ")");
 							return path;
 						}
 					}
@@ -227,7 +247,7 @@ function AyStar::FindPath(iterations)
 			} else {
 				if (cur_tile == goal) {
 					this._CleanPath();
-					if (num_iterations > 5000) AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+					if (num_iterations > 5000) AILog.Warning("Path found in " + num_iterations + " (" + (AIController.GetTick() - begin_tick) + ")");
 					return path;
 				}
 			}
@@ -246,7 +266,7 @@ function AyStar::FindPath(iterations)
 
 	if (this._open.Count() > 0) return false;
 	this._CleanPath();
-	//AILog.Warning("No path: " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+	//AILog.Warning("No path: " + num_iterations + " (" + (AIController.GetTick() - begin_tick) + ")");
 	return null;
 }
 

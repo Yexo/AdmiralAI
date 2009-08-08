@@ -18,17 +18,14 @@
  */
 
 class AdmiralAI extends AIInfo {
-	function GetAuthor()      { return "Thijs Marinussen"; }
-	function GetName()        { return "AdmiralAI"; }
-	function GetShortName()   { return "ADML"; }
-	function GetDescription() { return "An AI that uses several types of transport"; }
-	function GetVersion()     { return 20; }
-	function CanLoadFromVersion(version)
-	{
-		return version <= 19;
-	}
-	function GetDate()        { return "2009-2-15"; }
-	function CreateInstance() { return "AdmiralAI"; }
+	function GetAuthor()        { return "Thijs Marinussen"; }
+	function GetName()          { return "AdmiralAI"; }
+	function GetShortName()     { return "ADML"; }
+	function GetDescription()   { return "An AI that uses several types of transport"; }
+	function GetVersion()       { return 21; }
+	function MinVersionToLoad() { return 21; }
+	function GetDate()          { return "2009-06-05"; }
+	function CreateInstance()   { return "AdmiralAI"; }
 	function GetSettings() {
 		AddSetting({name = "use_busses", description = "Enable busses", easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = AICONFIG_BOOLEAN});
 		AddSetting({name = "use_trucks", description = "Enable trucks", easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = AICONFIG_BOOLEAN});

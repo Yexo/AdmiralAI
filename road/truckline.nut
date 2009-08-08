@@ -39,6 +39,7 @@ class TruckLine extends RoadLine
 	 * @param station_to A StationManager that controls the station we are transporting cargo to.
 	 * @param depot_tile A TileIndex of a depot tile near one of the stations.
 	 * @param cargo The CargoID we are transporting.
+	 * @param loaded True if we loaded this line from a savegame, false if it's a new line.
 	 */
 	constructor(ind_from, station_from, ind_to, station_to, depot_tile, cargo, loaded) {
 		::RoadLine.constructor(station_from, station_to, depot_tile, cargo, !loaded);
@@ -103,8 +104,11 @@ function TruckLine::CloseRoute()
 	AILog.Warning("Closing down cargo route");
 	this.UpdateVehicleList();
 	::main_instance.sell_vehicles.AddList(this._vehicle_list);
-	this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-	this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+	foreach (v, dummy in this._vehicle_list) {
+		local veh_id = this._engine_id == null ? AIVehicle.GetEngineType(v) : this._engine_id;
+		this._station_from.RemoveTrucks(1, this._distance, veh_id);
+		this._station_to.RemoveTrucks(1, this._distance, veh_id);
+	}
 	::main_instance.SendVehicleToSellToDepot();
 	this._station_from.CloseTruckStation();
 	this._station_to.CloseTruckStation();
@@ -131,7 +135,7 @@ function TruckLine::BuildVehicles(num)
 	if (max_to_build == 0) return true;
 	if (max_to_build < 0) {
 		this._vehicle_list.Valuate(AIVehicle.GetAge);
-		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 		this._vehicle_list.KeepTop(abs(max_to_build));
 		foreach (v, dummy in this._vehicle_list) {
 			AIVehicle.SendVehicleToDepot(v);
@@ -156,7 +160,7 @@ function TruckLine::BuildVehicles(num)
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD_ANY | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
@@ -190,8 +194,9 @@ function TruckLine::CheckVehicles()
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::main_instance.sell_vehicles.AddItem(v, 0);
-		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		local veh_id = this._engine_id == null ? AIVehicle.GetEngineType(v) : this._engine_id;
+		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(veh_id));
+		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(veh_id));
 	}
 
 	local list = AIList();
@@ -206,7 +211,7 @@ function TruckLine::CheckVehicles()
 	list.KeepValue(AIVehicle.VS_RUNNING);
 	if (list.Count() > 2) {
 		list.Valuate(AIVehicle.GetAge);
-		list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 		local v = list.Begin();
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);

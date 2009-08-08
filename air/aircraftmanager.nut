@@ -52,6 +52,23 @@ class AircraftManager
 	 */
 	function BuildNewRoute();
 
+	/**
+	 * Try to build two planes, one on station_a and one on station_b. Both planes
+	 * will get orders to fly between those two airports.
+	 * @param station_a The first station.
+	 * @param station_b The second station.
+	 * @return True if at least one plane was build succesful.
+	 */
+	function BuildPlanes(station_a, station_b);
+
+	/**
+	 * Get the miminum passenger acceptance before we'll build an airport
+	 * or this type at a location.
+	 * @param airport_type The AirportType to get the minimum acceptance for.
+	 * @return The minimum passenger cargo acceptance.
+	 */
+	function MinimumPassengerAcceptance(airport_type);
+
 /* private: */
 
 	/**
@@ -115,6 +132,30 @@ function AircraftManager::AfterLoad()
 			::main_instance.sell_vehicles.AddItem(v, 0);
 		}
 	}
+}
+
+function AircraftManager::CheckRoutes()
+{
+	local town_list = AITownList();
+	foreach (town, dummy in town_list) {
+		local man = ::main_instance._town_managers[town];
+		local new_arr = [];
+		foreach (airport in man._airports) {
+			local tile = AIStation.GetLocation(airport);
+			local type = AIAirport.GetAirportType(tile);
+			if (AITile.GetCargoAcceptance(tile, ::main_instance._passenger_cargo_id, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type), AIAirport.GetAirportCoverageRadius(type)) < 20) {
+				AILog.Warning("Selling airport " + AIStation.GetName(airport));
+				local veh_list = AIVehicleList_Station(airport);
+				::main_instance.sell_vehicles.AddList(veh_list);
+				::main_instance.SendVehicleToSellToDepot();
+				::main_instance.sell_stations.append([airport, AIStation.STATION_AIRPORT]);
+			} else {
+				new_arr.append(airport);
+			}
+		}
+		man._airports = new_arr;
+	}
+	return false;
 }
 
 function AircraftManager::_TownValuator(town_id)
@@ -184,7 +225,7 @@ function AircraftManager::BuildNewRoute()
 	 * somewhat random order. */
 	local town_list = AITownList();
 	Utils_Valuator.Valuate(town_list, this._TownValuator);
-	town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	town_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	local town_list2 = AIList();
 	town_list2.AddList(town_list);
 
@@ -274,7 +315,7 @@ function AircraftManager::_FindEngineID()
 	/* First find the EngineID for new big planes. */
 	local list = AIEngineList(AIVehicle.VT_AIR);
 	Utils_Valuator.Valuate(list, this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
 		new_engine_id = list.Begin();
@@ -292,7 +333,7 @@ function AircraftManager::_FindEngineID()
 	list.Valuate(AIEngine.GetPlaneType);
 	list.RemoveValue(AIAirport.PT_BIG_PLANE);
 	Utils_Valuator.Valuate(list, this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
 		new_engine_id = list.Begin();

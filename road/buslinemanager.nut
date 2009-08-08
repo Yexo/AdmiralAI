@@ -140,7 +140,7 @@ function BusLineManager::AfterLoad()
 			local station_manager_b = StationManager(station_b);
 			local depot_list = AIDepotList(AITile.TRANSPORT_ROAD);
 			depot_list.Valuate(AIMap.DistanceManhattan, AIStation.GetLocation(station_a));
-			depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+			depot_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 			local depot_tile = depot_list.Begin();
 			local articulated = station_manager_a.HasArticulatedBusStop() && station_manager_b.HasArticulatedBusStop();
 			local line = BusLine(station_manager_a, station_manager_b, depot_tile, ::main_instance._passenger_cargo_id, articulated);
@@ -282,7 +282,7 @@ function BusLineManager::BuildNewLine()
 		townlist.KeepAboveValue(town_from);
 		townlist.Valuate(AITown.GetDistanceManhattanToTile, AITown.GetLocation(town_from));
 		townlist.KeepBetweenValue(50, this._max_distance_new_line);
-		townlist.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		townlist.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 		foreach (town_to, dummy in townlist) {
 			local manager2 = ::main_instance._town_managers[town_to];
 			if (!manager2.CanGetStation()) continue;
@@ -370,7 +370,7 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		townlist.KeepAboveValue(town);
 		townlist.Valuate(AITown.GetDistanceManhattanToTile, AITown.GetLocation(town));
 		townlist.KeepBetweenValue(50, this._max_distance_existing_route);
-		townlist.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		townlist.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 		foreach (town_to, dummy in townlist) {
 			if (town_to_skipped < this._skip_to && do_skip) {
 				town_to_skipped++;

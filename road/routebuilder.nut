@@ -31,8 +31,7 @@ class RouteBuilder
 	 * @param station The StationID from where we want to build a route.
 	 * @param station_type The AIStation::StationType of the parts you want to connect.
 	 * @param goals An array containing the tiles to which you want to connect.
-	 * @return
-	 * @todo fill in return value docs.
+	 * @see BuildRoadRoute for the return value.
 	 */
 	static function BuildRoadRouteFromStation(station, station_type, goals);
 
@@ -138,7 +137,7 @@ function RouteBuilder::BuildPath(path, endpoints = [])
 				} else {
 					local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) + 1);
 					bridge_list.Valuate(AIBridge.GetMaxSpeed);
-					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 					if (!AIBridge.BuildBridge(AIVehicle.VT_ROAD, bridge_list.Begin(), path.GetTile(), par.GetTile())) {
 						if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 						if (!RouteBuilder._HandleBridgeBuildError(path.GetTile(), par.GetTile())) break;
@@ -209,7 +208,7 @@ function RouteBuilder::DeleteDeadEnd(tile)
 				next_tile = tile + offset;
 			}
 		}
-		if (!AIRoad.RemoveRoad(tile, next_tile)) return;
+		if (!AITile.DemolishTile(tile) || next_tile == null || !AIRoad.RemoveRoad(tile, next_tile)) return;
 		tile = next_tile;
 	}
 }

@@ -241,7 +241,7 @@ function TrainLine::BuildVehicles(num)
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD_ANY | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, this._depot_tiles[1], AIOrder.AIOF_SERVICE_IF_NEEDED);
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, this._depot_tiles[0], AIOrder.AIOF_SERVICE_IF_NEEDED);
@@ -310,7 +310,7 @@ function TrainLine::ConvertRoute(station_a, station_b, return_path, new_type)
 	}
 	local path = pf.FindPath(200000);
 	if (path == null) {
-		if (::main_instance.GetSetting("debug_signs")) {
+		if (AIController.GetSetting("debug_signs")) {
 			foreach (t in sources) {
 				AISign.BuildSign(t[1], "source");
 			}
@@ -352,7 +352,7 @@ function TrainLine::_UpdateRailType()
 	rail_type_list.Valuate(TrainManager.RailTypeValuator, this._cargo);
 	rail_type_list.RemoveValue(-1);
 	if (rail_type_list.Count() == 0) return -4;
-	rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	local new_type = rail_type_list.Begin();
 	if (this._rail_type == new_type) return 0;
 	if (!this._station_from.ConvertRailType(new_type)) return -5;
@@ -415,7 +415,7 @@ function TrainLine::CheckVehicles()
 		::main_instance.sell_vehicles.AddList(list);
 		::main_instance.SendVehicleToSellToDepot();
 		/* Only build new vehicles if we didn't sell any. */
-		return true;
+		return false;
 	}
 
 	foreach (v, dummy in this._vehicle_list) {
@@ -430,15 +430,15 @@ function TrainLine::CheckVehicles()
 	list.KeepValue(AIStation.GetLocation(this._station_from.GetStationID()));
 	list.Valuate(Utils_Tile.VehicleManhattanDistanceToTile, AIStation.GetLocation(this._station_from.GetStationID()));
 	list.KeepBelowValue(15);
-	if (list.Count() >= 3) {
+	if (list.Count() >= 4) {
 		AILog.Warning("Detected jam near " + AIStation.GetName(this._station_from.GetStationID()));
 		list.Valuate(AIVehicle.GetCargoLoad, this._cargo);
-		list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 		local v = list.Begin();
 		::main_instance.sell_vehicles.AddItem(v, 0);
 		::main_instance.SendVehicleToSellToDepot();
 		/* Don't buy a new train, we just sold one. */
-		return true;
+		return false;
 	}
 
 	this._FindEngineID();
@@ -517,7 +517,7 @@ function TrainLine::_FindEngineID()
 	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
 	list.KeepValue(1);
 	Utils_Valuator.Valuate(list, this._SortEngineWagonList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	this._wagon_engine_id = list.Count() == 0 ? null : list.Begin();
 	if (this._wagon_engine_id == null) {
 		this._engine_id = null;
@@ -539,7 +539,7 @@ function TrainLine::_FindEngineID()
 		max_price = max(max_price, AIEngine.GetPrice(engine));
 	}
 	Utils_Valuator.Valuate(list, this._SortEngineList, wagon_speed, max_price);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	local new_engine_id = list.Begin();
 	if (this._engine_id != null && this._engine_id != new_engine_id) {
 		this._AutoReplace(this._engine_id, new_engine_id);

@@ -56,17 +56,18 @@ class TownManager
 	function GetDepot(station_manager);
 
 	/**
-	 * Is it possible to build an extra station within this town?
+	 * Is it possible to build an extra bus stop in this town?
 	 * @return True if and only if an extra bus stop can be build.
 	 */
 	function CanGetStation();
 
 	/**
-	 * Build a new station in the neighbourhood of a given tile.
+	 * Build a new bus stop in the neighbourhood of a given tile.
+	 * @param force_dtrs The bus stop needs to be a drive-through stop.
 	 * @return The StationManager of the newly build station or null if no
 	 *  station could be build.
 	 */
-	function GetStation();
+	function GetStation(force_dtrs);
 
 	/**
 	 * Is it possible to let more planes land in this town. This can be
@@ -214,7 +215,7 @@ function TownManager::ScanMap()
 	depot_list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
 	depot_list.KeepValue(1);
 	depot_list.Valuate(AIMap.DistanceManhattan, AITown.GetLocation(this._town_id));
-	depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	depot_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 	foreach (tile, dis in depot_list) {
 		if (!this._depot_tiles.rawin(AIRoad.ROADTYPE_ROAD) && AIRoad.HasRoadType(tile, AIRoad.ROADTYPE_ROAD)) {
 			this._depot_tiles.rawset(AIRoad.ROADTYPE_ROAD, tile);
@@ -247,7 +248,7 @@ function TownManager::PlaceAirport(tile, type, height)
 	if (succeeded) return 0;
 	if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -1;
 	AILog.Error("Airport building failed: " + AIError.GetLastErrorString());
-	if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(tile, "AP fail");
+	if (AIController.GetSetting("debug_signs")) AISign.BuildSign(tile, "AP fail");
 	return -2;
 }
 
@@ -257,7 +258,7 @@ function TownManager::TryBuildAirport(types)
 		if (!AIAirport.IsValidAirportType(type)) continue;
 		/* Since checking all tiles takes a lot of time, but not so much
 		 * ticks, sleep a tick to prevent hickups. */
-		::main_instance.Sleep(1);
+		AIController.Sleep(1);
 		local tile_list = AITileList();
 		Utils_Tile.AddSquare(tile_list, AITown.GetLocation(this._town_id), 20 + AITown.GetPopulation(this._town_id) / 3000);
 		tile_list.Valuate(AITile.GetCargoAcceptance, ::main_instance._passenger_cargo_id, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type), AIAirport.GetAirportCoverageRadius(type));
@@ -284,7 +285,7 @@ function TownManager::TryBuildAirport(types)
 		local list2 = AIList();
 		list2.AddList(tile_list);
 		Utils_Valuator.Valuate(list2, TownManager.AirportLocationValuator, type, AITown.GetLocation(this._town_id));
-		list2.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 		foreach (t, dummy in list2) {
 			/* With a town rating below AITown.TOWN_RATING_POOR, the town will
 			 * disallow building new stations. */
@@ -425,7 +426,7 @@ function TownManager::GetStation(force_dtrs)
 	list.Valuate(TownManager.GetNeighbourRoadCount);
 	list.KeepAboveValue(0);
 
-	if (force_dtrs || ::main_instance.GetSetting("build_bus_dtrs") || !this.SupportNormalStop(AIRoad.GetCurrentRoadType())) {
+	if (force_dtrs || AIController.GetSetting("build_bus_dtrs") || !this.SupportNormalStop(AIRoad.GetCurrentRoadType())) {
 		/* First try to build a drivethough road stop. */
 		local drivethrough_list = AIList();
 		drivethrough_list.AddList(list);
@@ -433,7 +434,7 @@ function TownManager::GetStation(force_dtrs)
 		drivethrough_list.Valuate(Utils_Town.TileOnTownLayout, this._town_id, true);
 		drivethrough_list.KeepValue(1);
 		drivethrough_list.Valuate(AIMap.DistanceManhattan, town_center);
-		drivethrough_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		drivethrough_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 		foreach (tile, d in drivethrough_list) {
 			local front_tile = TownManager.CanBuildDrivethroughStop(tile);
 			if (front_tile <= 0) continue;
@@ -452,7 +453,7 @@ function TownManager::GetStation(force_dtrs)
 				}
 				if (RouteBuilder.BuildRoadRoute(RPF([this._town_id]), [front_tile], [back_tile], 1, 20, forbidden_tiles) != 0) {
 					AILog.Warning("Front side could not be connected to back side");
-					AISign.BuildSign(tile, "!!!");
+					if (AIController.GetSetting("debug_signs")) AISign.BuildSign(tile, "!!!");
 					continue;
 				}
 			}
@@ -476,7 +477,7 @@ function TownManager::GetStation(force_dtrs)
 	list.Valuate(Utils_Town.TileOnTownLayout, this._town_id, false);
 	list.KeepValue(0);
 	list.Valuate(AIMap.DistanceManhattan, town_center);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 	foreach (t, dis in list) {
 		if (AICompany.IsMine(AITile.GetOwner(t))) continue;
 		local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),

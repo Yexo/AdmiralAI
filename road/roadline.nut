@@ -118,7 +118,7 @@ function RoadLine::_FindEngineID()
 	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
 	list.KeepValue(1);
 	Utils_Valuator.Valuate(list, this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
 		new_engine_id = list.Begin();

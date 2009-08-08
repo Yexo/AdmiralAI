@@ -98,7 +98,6 @@ class TrainManager
 	 * @param goal The tile we want to be close to.
 	 */
 	function _GetSortedOffsets(tile, goal);
-
 };
 
 function TrainManager::Save()
@@ -123,7 +122,7 @@ function TrainManager::Save()
 
 	foreach (route in this._routes) {
 		if (!route._valid) continue;
-		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tiles, route._cargo, route._platform_length, route._rail_type]);
+		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tiles, route._cargo, route._platform_length, route._rail_type, route._engine_id]);
 	}
 
 	data.rawset("max_distance_new_route", this._max_distance_new_route);
@@ -181,6 +180,7 @@ function TrainManager::Load(data)
 			}
 			if (station_from == null || station_to == null) continue;
 			local route = TrainLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true, route_array[6], route_array[7]);
+			route._engine_id = route_array[8];
 			station_from.AfterLoadSetRailType(route_array[7]);
 			station_to.AfterLoadSetRailType(route_array[7]);
 			AILog.Info("Loaded route between " + AIStation.GetName(station_from.GetStationID()) + " and " + AIStation.GetName(station_to.GetStationID()));
@@ -254,6 +254,16 @@ function TrainManager::IndustryClose(industry_id)
 	foreach (cargo, table in this._unbuild_routes) {
 		this._unbuild_routes[cargo].rawdelete(industry_id);
 	}
+	if (this._ind_to_pickup_stations.rawin(industry_id)) {
+		foreach (man in this._ind_to_pickup_stations[industry_id]) {
+			::main_instance.sell_stations.append([man[0].GetStationID(), AIStation.STATION_TRAIN]);
+		}
+	}
+	if (this._ind_to_drop_stations.rawin(industry_id)) {
+		foreach (man in this._ind_to_drop_stations[industry_id]) {
+			::main_instance.sell_stations.append([man[0].GetStationID(), AIStation.STATION_TRAIN]);
+		}
+	}
 }
 
 function TrainManager::IndustryOpen(industry_id)
@@ -275,7 +285,7 @@ function TrainManager::RailTypeValuator(rail_type, cargo_id)
 	list.Valuate(AIEngine.CanPullCargo, cargo_id);
 	list.KeepValue(1);
 	list.Valuate(AIEngine.GetMaxSpeed);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	if (list.Count() == 0) return -1;
 
 	local list2 = AIEngineList(AIVehicle.VT_RAIL);
@@ -286,7 +296,7 @@ function TrainManager::RailTypeValuator(rail_type, cargo_id)
 	list2.Valuate(AIEngine.CanRefitCargo, cargo_id);
 	list2.KeepValue(1);
 	list2.Valuate(AIEngine.GetCapacity);
-	list2.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	if (list2.Count() == 0) return -1;
 
 	return AIEngine.GetMaxSpeed(list.Begin()) * AIEngine.GetCapacity(list2.Begin());
@@ -305,7 +315,7 @@ function TrainManager::BuildNewRoute()
 
 		rail_type_list.Valuate(TrainManager.RailTypeValuator, cargo);
 		rail_type_list.RemoveValue(-1);
-		rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 		/* If there is no railtype with a possible train, try another cargo type. */
 		if (rail_type_list.Count() == 0) continue;
 		AIRail.SetCurrentRailType(rail_type_list.Begin());
@@ -317,11 +327,16 @@ function TrainManager::BuildNewRoute()
 				if (!AIIndustryType.IsRawIndustry(AIIndustry.GetIndustryType(ind_from))) continue;
 			}
 			local last_production = AIIndustry.GetLastMonthProduction(ind_from, cargo);
-			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
-			local prod = AIIndustry.GetLastMonthProduction(ind_from, cargo) - AIIndustry.GetLastMonthTransported(ind_from, cargo);
-			val_list.AddItem(ind_from, prod + AIBase.RandRange(prod));
+			local last_transportation = AIIndustry.GetLastMonthTransported(ind_from, cargo);
+			if (last_production == 0) continue;
+			/* Don't try to transport goods from industries that are serviced very well. */
+			if (AdmiralAI.GetMaxCargoPercentTransported(AITile.GetClosestTown(AIIndustry.GetLocation(ind_from))) < 100 * last_transportation / last_production) continue;
+			/* Serviced industries with very low production are not interesting. */
+			if (last_production < 100 && last_transportation > 0) continue;
+			local free_production = last_production - last_transportation;
+			val_list.AddItem(ind_from, free_production + AIBase.RandRange(free_production));
 		}
-		val_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		val_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 
 		foreach (ind_from, dummy in val_list) {
 			Utils_General.GetMoney(200000);
@@ -329,7 +344,7 @@ function TrainManager::BuildNewRoute()
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(50, min(this._max_distance_new_route, (AICompany.GetBankBalance(AICompany.COMPANY_SELF) - 60000) / 700));
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local station_from = this._GetStationNearIndustry(ind_from, true, cargo, ind_to);
 				if (station_from == null) break;
@@ -340,9 +355,9 @@ function TrainManager::BuildNewRoute()
 					AILog.Info("Rail route build succesfully");
 					local line = TrainLine(ind_from, station_from, ind_to, station_to, ret, cargo, false, this._platform_length, AIRail.GetCurrentRailType());
 					this._routes.push(line);
-					AdmiralAI.TransportCargo(cargo, ind_from);
 					this._UsePickupStation(ind_from, station_from);
 					this._UseDropStation(ind_to, station_to);
+					AdmiralAI.TransportCargo(cargo, ind_from);
 					return true;
 				} else if (ret == -1) {
 					/* remove source station. */
@@ -363,6 +378,26 @@ function TrainManager::BuildNewRoute()
 function TrainManager::TransportCargo(cargo, ind)
 {
 	this._unbuild_routes[cargo].rawdelete(ind);
+	if (this._ind_to_pickup_stations.rawin(ind)) {
+		local cargo_list = AICargoList_IndustryProducing(ind);
+		local num_free_cargo = 0;
+		foreach (cargo, dummy in cargo_list) {
+			if (this._unbuild_routes[cargo].rawin(ind)) num_free_cargo++;
+		}
+		local num_free_stations = 0;
+		foreach (station_pair in this._ind_to_pickup_stations.rawget(ind)) {
+			if (!station_pair[1]) num_free_stations++;
+		}
+		while (num_free_stations > num_free_cargo) {
+			foreach (station_pair in this._ind_to_pickup_stations.rawget(ind)) {
+				if (!station_pair[1]) {
+					this._DeletePickupStation(ind, station_pair[0]);
+					num_free_stations--;
+					break;
+				}
+			}
+		}
+	}
 }
 
 function TrainManager::_UsePickupStation(ind, station_manager)
@@ -516,9 +551,9 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 	}
 
 	Utils_Valuator.Valuate(tile_list, this.TileValuator1, AIIndustry.GetLocation(other_ind), 4, platform_length);
-	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 	Utils_Valuator.Valuate(tile_list2, this.TileValuator2, AIIndustry.GetLocation(other_ind), 4, platform_length);
-	tile_list2.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	tile_list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 
 	if (tile_list.Count() == 0 && tile_list2.Count() == 0) AILog.Warning("No tiles");
 	local lists = [];
@@ -538,7 +573,7 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 		foreach (tile, dummy in tile_list) {
 			if (!func(tile, platform_length)) {
 				AILog.Error("Error");
-				if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(tile, "E");
+				if (AIController.GetSetting("debug_signs")) AISign.BuildSign(tile, "E");
 			}
 			if (trackdir == AIRail.RAILTRACK_NW_SE) {
 				local h = Utils_Tile.CanBuildStation(tile, 2, platform_length + 2);
@@ -573,7 +608,7 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 				return manager;
 			} else {
 				AILog.Error("Rail station building failed near " + AIIndustry.GetName(ind));
-				if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(tile, "RS Fail");
+				if (AIController.GetSetting("debug_signs")) AISign.BuildSign(tile, "RS Fail");
 			}
 		}
 	}

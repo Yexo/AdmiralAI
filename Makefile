@@ -1,6 +1,6 @@
 # Configuration
 AI_NAME = AdmiralAI
-AI_VERSION = 20
+AI_VERSION = 21
 FILES = COPYING *.nut rail/*.nut road/*.nut air/*.nut utils/*.nut
 # End of configuration
 

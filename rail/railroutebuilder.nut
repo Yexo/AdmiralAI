@@ -416,8 +416,8 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		if (path == null || path == false) return -8;
 	}
 	if (!building_ok) return -5;
-	local depot1 = RailRouteBuilder.BuildDepot(path, ::main_instance.GetSetting("depot_near_station"));
-	local depot2 = RailRouteBuilder.BuildDepot(first_path, ::main_instance.GetSetting("depot_near_station"));
+	local depot1 = RailRouteBuilder.BuildDepot(path, AIController.GetSetting("depot_near_station"));
+	local depot2 = RailRouteBuilder.BuildDepot(first_path, AIController.GetSetting("depot_near_station"));
 	if (depot1 == null && depot2 == null) {
 		AILog.Error("COuldn't find a place for a rail depot!");
 		return -6;
@@ -468,7 +468,7 @@ function RailRouteBuilder::BuildPath(path)
 					} else {
 						local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), prev) + 1);
 						bridge_list.Valuate(AIBridge.GetMaxSpeed);
-						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 						if (!AIBridge.BuildBridge(AIVehicle.VT_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
 							AILog.Error("2 " + AIError.GetLastErrorString());
 							return false;
@@ -482,16 +482,16 @@ function RailRouteBuilder::BuildPath(path)
 				if (AIRail.IsRailTile(prev) && !AICompany.IsMine(AITile.GetOwner(prev))) return false;
 				if (!AIRail.AreTilesConnected(prevprev, prev, path.GetTile())) {
 					if (!AIRail.BuildRail(prevprev, prev, path.GetTile())) {
-						local num_tries = 10;
+						local num_tries = 20;
 						local ok = false;
 						while (AIError.GetLastError() == AIError.ERR_VEHICLE_IN_THE_WAY && num_tries-- > 0) {
-							AIController.Sleep(200);
+							AIController.Sleep(74);
 							if (AIRail.BuildRail(prevprev, prev, path.GetTile())) { ok = true; break; }
 						}
 						if (!ok) {
 							AILog.Error(prevprev + "   " + prev + "   " + path.GetTile());
 							AILog.Error("3 " + AIError.GetLastErrorString());
-							if (::main_instance.GetSetting("debug_signs")) {
+							if (AIController.GetSetting("debug_signs")) {
 								AISign.BuildSign(prevprev, "1");
 								AISign.BuildSign(prev, "2");
 								AISign.BuildSign(path.GetTile(),  "3");
@@ -503,7 +503,7 @@ function RailRouteBuilder::BuildPath(path)
 						assert(AIRail.TrainHasPowerOnRail(AIRail.GetRailType(prev), AIRail.GetCurrentRailType()));
 						if (!AIRail.ConvertRailType(prev, prev, AIRail.GetCurrentRailType())) {
 							AILog.Error("6 " + AIError.GetLastErrorString());
-							if (::main_instance.GetSetting("debug_signs")) AISign.BuildSign(prev, "!! " + AIRail.GetRailType(prev) + "  " + AIRail.GetCurrentRailType());
+							if (AIController.GetSetting("debug_signs")) AISign.BuildSign(prev, "!! " + AIRail.GetRailType(prev) + "  " + AIRail.GetCurrentRailType());
 							return false;
 						}
 				}
@@ -579,14 +579,37 @@ class RPathItem
 
 function ConnectDepotDiagonal(tile_a, tile_b, tile_c)
 {
-	if (!AITile.IsBuildable(tile_c)) return null;
+	if (!AITile.IsBuildable(tile_c) && (!AIRail.IsRailTile(tile_c) || !AICompany.IsMine(AITile.GetOwner(tile_c)))) return null;
 	local offset1 = (tile_c - tile_a) / 2;
 	local offset2 = (tile_c - tile_b) / 2;
 	local depot_tile = null;
+	local depot_build = false;
 	local tiles = [];
 	tiles.append([tile_a, tile_a + offset1, tile_c]);
 	tiles.append([tile_b, tile_b + offset2, tile_c]);
-	if (AITile.IsBuildable(tile_c + offset1)) {
+	if (AIRail.IsRailDepotTile(tile_c + offset1) && AIRail.GetRailDepotFrontTile(tile_c + offset1) == tile_c &&
+			AIRail.TrainHasPowerOnRail(AIRail.GetRailType(tile_c + offset1), AIRail.GetCurrentRailType())) {
+		/* If we can't build trains for the current rail type in the depot, see if we can
+		 * convert it without problems. */
+		if (!AIRail.TrainHasPowerOnRail(AIRail.GetCurrentRailType(), AIRail.GetRailType(tile_c + offset1))) {
+			if (!AIRail.ConvertRailType(tile_c + offset1, tile_c + offset1, AIRail.GetCurrentRailType())) return null;
+		}
+		depot_tile = tile_c + offset1;
+		depot_build = true;
+		tiles.append([tile_a + offset1, tile_c, tile_c + offset1]);
+		tiles.append([tile_b + offset2, tile_c, tile_c + offset1]);
+	} else if (AIRail.IsRailDepotTile(tile_c + offset2) && AIRail.GetRailDepotFrontTile(tile_c + offset2) == tile_c &&
+			AIRail.TrainHasPowerOnRail(AIRail.GetRailType(tile_c + offset2), AIRail.GetCurrentRailType())) {
+		/* If we can't build trains for the current rail type in the depot, see if we can
+		 * convert it without problems. */
+		if (!AIRail.TrainHasPowerOnRail(AIRail.GetCurrentRailType(), AIRail.GetRailType(tile_c + offset2))) {
+			if (!AIRail.ConvertRailType(tile_c + offset2, tile_c + offset2, AIRail.GetCurrentRailType())) return null;
+		}
+		depot_tile = tile_c + offset2;
+		depot_build = true;
+		tiles.append([tile_a + offset1, tile_c, tile_c + offset2]);
+		tiles.append([tile_b + offset2, tile_c, tile_c + offset2]);
+	} else if (AITile.IsBuildable(tile_c + offset1)) {
 		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
 			!AITile.RaiseTile(tile_c, AITile.GetComplementSlope(AITile.GetSlope(tile_c)))) return null;
 		if (Utils_Tile.GetRealHeight(tile_c) != Utils_Tile.GetRealHeight(tile_a) &&
@@ -608,14 +631,14 @@ function ConnectDepotDiagonal(tile_a, tile_b, tile_c)
 	{
 		local test = AITestMode();
 		foreach (t in tiles) {
-			if (!AIRail.BuildRail(t[0], t[1], t[2])) return null;
+			if (!AIRail.AreTilesConnected(t[0], t[1], t[2]) && !AIRail.BuildRail(t[0], t[1], t[2])) return null;
 		}
-		if (!AIRail.BuildRailDepot(depot_tile, tile_c)) return null;
+		if (!depot_build && !AIRail.BuildRailDepot(depot_tile, tile_c)) return null;
 	}
 	foreach (t in tiles) {
-		if (!AIRail.BuildRail(t[0], t[1], t[2])) return null;
+		if (!AIRail.AreTilesConnected(t[0], t[1], t[2]) && !AIRail.BuildRail(t[0], t[1], t[2])) return null;
 	}
-	if (!AIRail.BuildRailDepot(depot_tile, tile_c)) return null;
+	if (!depot_build && !AIRail.BuildRailDepot(depot_tile, tile_c)) return null;
 	return depot_tile;
 }
 
@@ -643,50 +666,23 @@ function RailRouteBuilder::BuildDepot(path, reverse)
 				                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0)];
 				foreach (offset in offsets) {
 					if (Utils_Tile.GetRealHeight(ppp + offset) != Utils_Tile.GetRealHeight(ppp)) continue;
-					if (AIRail.IsRailDepotTile(ppp + offset) && AIRail.TrainHasPowerOnRail(AIRail.GetRailType(ppp + offset), AIRail.GetCurrentRailType())) {
+					local depot_build = false;
+					if (AIRail.IsRailDepotTile(ppp + offset)) {
 						if (AIRail.GetRailDepotFrontTile(ppp + offset) != ppp) continue;
-						if (AIRail.GetRailType(ppp + offset) == AIRail.GetCurrentRailType()) return ppp + offset;
-						if (!AIRail.ConvertRailType(ppp + offset, ppp + offset, AIRail.GetCurrentRailType())) continue;
-						return ppp + offset;
+						if (!AIRail.TrainHasPowerOnRail(AIRail.GetRailType(ppp + offset), AIRail.GetCurrentRailType())) continue;
+						/* If we can't build trains for the current rail type in the depot, see if we can
+						 * convert it without problems. */
+						if (!AIRail.TrainHasPowerOnRail(AIRail.GetCurrentRailType(), AIRail.GetRailType(ppp + offset))) {
+							if (!AIRail.ConvertRailType(ppp + offset, ppp + offset, AIRail.GetCurrentRailType())) continue;
+						}
+						depot_build = true;
 					} else {
 						local test = AITestMode();
 						if (!AIRail.BuildRailDepot(ppp + offset, ppp)) continue;
 					}
-					switch (offset) {
-						case -1:
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_NE)) {
-								continue;
-							}
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NE_SE)) {
-								continue;
-							}
-							break;
-						case 1:
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_SW)) {
-								continue;
-							}
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_SW_SE)) {
-								continue;
-							}
-							break;
-						case -AIMap.GetMapSizeX():
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_NE)) {
-								continue;
-							}
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NW_SW)) {
-								continue;
-							}
-							break;
-						case AIMap.GetMapSizeX():
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_NE_SE)) {
-								continue;
-							}
-							if (!AIRail.BuildRailTrack(ppp, AIRail.RAILTRACK_SW_SE)) {
-								continue;
-							}
-							break;
-					}
-					if (AIRail.BuildRailDepot(ppp + offset, ppp)) return ppp + offset;
+					if (!AIRail.AreTilesConnected(pp, ppp, ppp + offset) && !AIRail.BuildRail(pp, ppp, ppp + offset)) continue;
+					if (!AIRail.AreTilesConnected(pppp, ppp, ppp + offset) && !AIRail.BuildRail(pppp, ppp, ppp + offset)) continue;
+					if (depot_build || AIRail.BuildRailDepot(ppp + offset, ppp)) return ppp + offset;
 				}
 			} else if (ppppp - ppp == ppp - prev && ppppp - pppp != pp - prev) {
 				local offsets = null;

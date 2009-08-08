@@ -47,6 +47,18 @@ class StationManager
 	}
 
 	/**
+	 * Save all station-related data in a table and return it.
+	 * @return The data we want to save.
+	 */
+	function Save();
+
+	/**
+	 * Load all available data frm the savegame.
+	 * @param data The savegame data for this station.
+	 */
+	function Load(data);
+
+	/**
 	 * Close down this stations for trucks if there are no more trucks using it.
 	 */
 	function CloseTruckStation();
@@ -60,6 +72,8 @@ class StationManager
 	/**
 	 * Is it possible to add some extra trucks to this station?
 	 * @param num The amount of trucks we want to add.
+	 * @param distance The distance the new trucks have to travel.
+	 * @param speed The maximum speed of the trucks.
 	 * @return The maximum number of trucks that can be added. If there
 	 *   are currently to many trucks visiting this station, it'll return
 	 *   a negative number indicating the amount of vehicles that need to
@@ -71,12 +85,16 @@ class StationManager
 	/**
 	 * Notify the StationManager that some trucks were added to this station.
 	 * @param num The amount of trucks that were added.
+	 * @param distance The distance the new trucks have to travel.
+	 * @param speed The maximum speed of the trucks.
 	 */
 	function AddTrucks(num, distance, speed);
 
 	/**
 	 * Notify the StationManager that some trucks were removed from this station.
 	 * @param num The amount of trucks that were removed.
+	 * @param distance The distance the trucks had to travel.
+	 * @param speed The maximum speed of the trucks.
 	 */
 	function RemoveTrucks(num, distance, speed);
 
@@ -89,6 +107,8 @@ class StationManager
 	/**
 	 * Is it possible to add some extra busses to this station?
 	 * @param num The amount of busses we want to add.
+	 * @param distance The distance the new busses have to travel.
+	 * @param speed The maximum speed of the busses.
 	 * @return The maximum number of busses that can be added. If there are
 	 *   currently to many busses visiting this station, it'll return a
 	 *   negative number indicating the amount of vehicles that need to
@@ -100,12 +120,16 @@ class StationManager
 	/**
 	 * Notify the StationManager that some busses were added to this station.
 	 * @param num The amount of busses that were added.
+	 * @param distance The distance the new busses have to travel.
+	 * @param speed The maximum speed of the busses.
 	 */
 	function AddBusses(num, distance, speed);
 
 	/**
 	 * Notify the StationManager that some busses were removed from this station.
 	 * @param num The amount of busses that were removed.
+	 * @param distance The distance the busses had to travel.
+	 * @param speed The maximum speed of the busses.
 	 */
 	function RemoveBusses(num, distance, speed);
 
@@ -208,22 +232,7 @@ function StationManager::HasArticulatedBusStop()
 function StationManager::CloseTruckStation()
 {
 	if (this._truck_points > 0) return;
-	local list = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP);
-	foreach (tile, dummy in list) {
-		local tries = 10;
-		while (tries-- > 0) {
-			if (!AITile.DemolishTile(tile)) {
-				switch (AIError.GetLastError()) {
-					case AIError.ERR_UNKNOWN:
-					case AIError.ERR_VEHICLE_IN_THE_WAY:
-					case AIError.ERR_NOT_ENOUGH_CASH:
-						AIController.Sleep(100);
-						continue;
-				}
-			}
-			break;
-		}
-	}
+	::main_instance.sell_stations.append([this._station_id, AIStation.STATION_TRUCK_STOP]);
 	::main_instance._truck_manager.ClosedStation(this);
 }
 
@@ -269,9 +278,11 @@ function StationManager::HasBusses()
 
 function StationManager::CanAddBusses(num, distance, speed)
 {
+	local station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_BUS_STOP)
+	local num_bus_stops = station_tilelist.Count();
 	local points_per_bus = StationManager.GetPoints(distance, speed);
-	if (this._bus_points < 70000) return ((70000 - this._bus_points) / points_per_bus).tointeger();
-	return ((70000 - this._bus_points - points_per_bus + 1) / points_per_bus).tointeger();
+	if (this._bus_points < num_bus_stops * 70000) return ((num_bus_stops * 70000 - this._bus_points) / points_per_bus).tointeger();
+	return ((num_bus_stops * 70000 - this._bus_points - points_per_bus + 1) / points_per_bus).tointeger()
 }
 
 function StationManager::AddBusses(num, distance, speed)
@@ -313,7 +324,7 @@ function StationManager::ConvertRailType(rail_type)
 	if (this._rail_type == rail_type) return true;
 
 	local tiles = AITileList_StationType(this._station_id, AIStation.STATION_TRAIN);
-	tiles.Sort(AIAbstractList.SORT_BY_ITEM, true);
+	tiles.Sort(AIAbstractList.SORT_BY_ITEM, AIAbstractList.SORT_ASCENDING);
 	if (AIRail.GetRailTracks(tiles.Begin()) & AIRail.RAILTRACK_NW_SE) {
 		local tile = tiles.Begin() + AIMap.GetTileIndex(0, -1);
 		if (AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NW_SE && AICompany.IsMine(AITile.GetOwner(tile))) {
@@ -338,7 +349,7 @@ function StationManager::ConvertRailType(rail_type)
 		local num_tries = 40;
 		while (num_tries-- > 0) {
 			if (AIRail.ConvertRailType(tile, tile, rail_type)) break;
-			::main_instance.Sleep(20);
+			AIController.Sleep(20);
 		}
 		if (AIRail.GetRailType(tile) != rail_type) return false;
 	}

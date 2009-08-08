@@ -22,7 +22,6 @@
 /**
  * Class that controls a line between two bus stops. It can buy and
  *  sell vehicles to keep up with the demand.
- * @todo merge large parts of this class with TruckLine.
  */
 class BusLine extends RoadLine
 {
@@ -105,7 +104,7 @@ function BusLine::BuildVehicles(num)
 	if (max_to_build == 0) return true;
 	if (max_to_build < 0) {
 		this._vehicle_list.Valuate(AIVehicle.GetAge);
-		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 		this._vehicle_list.KeepTop(abs(max_to_build));
 		foreach (v, dummy in this._vehicle_list) {
 			AIVehicle.SendVehicleToDepot(v);
@@ -159,7 +158,8 @@ function BusLine::CheckVehicles()
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::main_instance.sell_vehicles.AddItem(v, 0);
-		local max_speed = AIEngine.GetMaxSpeed(this._engine_id);
+		local veh_id = this._engine_id == null ? AIVehicle.GetEngineType(v) : this._engine_id;
+		local max_speed = AIEngine.GetMaxSpeed(veh_id);
 		this._station_from.RemoveBusses(1, this._distance, max_speed);
 		this._station_to.RemoveBusses(1, this._distance, max_speed);
 		build_new = false;
