@@ -100,6 +100,7 @@ class AdmiralAI extends AIController
 /* public: */
 
 	constructor() {
+		main_instance = this;
 		local cargo_list = AICargoList();
 		cargo_list.Valuate(AICargo.HasCargoClass, AICargo.CC_PASSENGERS);
 		if (cargo_list.Count() == 0) {
@@ -500,7 +501,6 @@ function AdmiralAI::Start()
 		AILog.Error("Quitting.");
 		return;
 	}
-	main_instance = this;
 	local start_tick = this.GetTick();
 
 	if (AICompany.GetName(AICompany.MY_COMPANY).find("AdmiralAI") == null) {

@@ -141,7 +141,6 @@ function TrainManager::Load(data)
 				man.SetCargoDrop(false);
 				man.AfterLoadSetRailType(null);
 				new_man_array.push([man, man_info[1]]);
-				if (!man_info[1]) AILog.Info("Load station near: " + AIIndustry.GetName(ind) + ", station = " + AIStation.GetName(man_info[0]));
 			}
 			this._ind_to_pickup_stations.rawset(ind, new_man_array);
 		}
@@ -160,26 +159,31 @@ function TrainManager::Load(data)
 		}
 	}
 
-	if (false && data.rawin("routes")) {
+	if (data.rawin("routes")) {
 		foreach (route_array in data.rawget("routes")) {
 			local station_from = null;
-			foreach (station in this._ind_to_pickup_stations.rawget(route_array[0])) {
-				if (station[0].GetStationID() == route_array[1]) {
-					station_from = station[0];
+			foreach (man_array in this._ind_to_pickup_stations.rawget(route_array[0])) {
+				if (man_array[0].GetStationID() == route_array[1]) {
+					station_from = man_array[0];
+					man_array[1] = true;
 					break;
 				}
 			}
+			/* TODO: rewrite save/load code (or all station_manager code, so bind StationID's to
+			 * managers, for example with a map in ::main_instance. */
 			local station_to = null;
-			if (this._ind_to_drop_stations.rawin(route_array[2])) {
-				local station = this._ind_to_drop_stations.rawget(route_array[2]);
-				if (station.GetStationID() == route_array[3]) {
-					station_to = station;
+			foreach (man_array in this._ind_to_drop_stations.rawget(route_array[2])) {
+				if (man_array[0].GetStationID() == route_array[3]) {
+					station_to = man_array[0];
+					man_array[1] = true;
+					break;
 				}
 			}
 			if (station_from == null || station_to == null) continue;
 			local route = TrainLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true, route_array[6], route_array[7]);
 			station_from.AfterLoadSetRailType(route_array[7]);
 			station_to.AfterLoadSetRailType(route_array[7]);
+			AILog.Info("Loaded route between " + AIStation.GetName(station_from.GetStationID()) + " and " + AIStation.GetName(station_to.GetStationID()));
 			this._routes.push(route);
 			if (this._unbuild_routes.rawin(route_array[5])) {
 				foreach (ind, dummy in this._unbuild_routes[route_array[5]]) {
@@ -203,8 +207,7 @@ function TrainManager::AfterLoad()
 {
 	foreach (route in this._routes) {
 		route._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_RAIL);
-		route.RenameGroup();
-		route.InitiateAutoReplace();
+		route._RenameGroup();
 	}
 }
 

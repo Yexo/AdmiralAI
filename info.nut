@@ -21,18 +21,18 @@ class AdmiralAI extends AIInfo {
 	function GetAuthor()      { return "Thijs Marinussen"; }
 	function GetName()        { return "AdmiralAI"; }
 	function GetDescription() { return "An AI that uses several types of transport"; }
-	function GetVersion()     { return 17; }
-	function GetDate()        { return "2008-1-5"; }
+	function GetVersion()     { return 18; }
+	function GetDate()        { return "2008-1-12"; }
 	function CreateInstance() { return "AdmiralAI"; }
 	function GetSettings() {
-		SetSetting({name = "use_busses", description = "Set to 1 to enable busses", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
-		SetSetting({name = "use_trucks", description = "Set to 1 to enable trucks", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
-		SetSetting({name = "use_planes", description = "Set to 1 to enable aircraft", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
-		SetSetting({name = "use_trains", description = "Set to 1 to enable trains", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
-		SetSetting({name = "build_statues", description = "If set to 1, AdmiralAI will try to build statues as soon as is has enough money", min_value = 0, max_value = 1, easy_value = 0, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
-		SetSetting({name = "always_autorenew", description = "If set to 1, always use autoreplace regardless of the breakdown setting", min_value = 0, max_value = 1, easy_value = 0, medium_value = 0, hard_value = 0, custom_value = 0, flags = 0});
-		SetSetting({name = "depot_near_station", description = "Set to 1 to build the depot near the loading station instead of near the dropoff station.", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
-		SetSetting({name = "debug_signs", description = "Set to 1 to enable building debug signs", min_value = 0, max_value = 1, easy_value = 0, medium_value = 0, hard_value = 0, custom_value = 0, flags = 0});
+		AddSetting({name = "use_busses", description = "Set to 1 to enable busses", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
+		AddSetting({name = "use_trucks", description = "Set to 1 to enable trucks", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
+		AddSetting({name = "use_planes", description = "Set to 1 to enable aircraft", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
+		AddSetting({name = "use_trains", description = "Set to 1 to enable trains", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
+		AddSetting({name = "build_statues", description = "If set to 1, AdmiralAI will try to build statues as soon as is has enough money", min_value = 0, max_value = 1, easy_value = 0, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
+		AddSetting({name = "always_autorenew", description = "If set to 1, always use autoreplace regardless of the breakdown setting", min_value = 0, max_value = 1, easy_value = 0, medium_value = 0, hard_value = 0, custom_value = 0, flags = 0});
+		AddSetting({name = "depot_near_station", description = "Set to 1 to build the depot near the loading station instead of near the dropoff station.", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});
+		AddSetting({name = "debug_signs", description = "Set to 1 to enable building debug signs", min_value = 0, max_value = 1, easy_value = 0, medium_value = 0, hard_value = 0, custom_value = 0, flags = 0});
 	}
 };
 

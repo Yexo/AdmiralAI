@@ -361,6 +361,7 @@ function TruckLineManager::BuildNewLine()
 				local station_from = this._GetStationNearIndustry(ind_from, route[0], true, cargo);
 				if (station_from == null) break;
 				local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+				if (ret1 != 0) break;;
 				local depot = this._BuildDepot(station_from);
 				if (depot == null) break;
 				local station_to = this._GetStationNearIndustry(ind_to, route[1], false, cargo);
@@ -368,15 +369,14 @@ function TruckLineManager::BuildNewLine()
 				/** @todo We have 80 here random speed, maybe create an engine list and take the real value. */
 				if (station_to.CanAddTrucks(5, AIIndustry.GetDistanceManhattanToTile(ind_from, AIIndustry.GetLocation(ind_to)), 80) < 5) continue;
 				local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
-				if (ret1 == 0 && ret2 == 0) {
-					AILog.Info("Route ok");
-					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
-					this._routes.push(line);
-					AdmiralAI.TransportCargo(cargo, ind_from);
-					this._UsePickupStation(ind_from, station_from);
-					AIRoad.SetCurrentRoadType(last_road_type);
-					return true;
-				}
+				if (ret2 != 0) continue;
+				AILog.Info("Route ok");
+				local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
+				this._routes.push(line);
+				AdmiralAI.TransportCargo(cargo, ind_from);
+				this._UsePickupStation(ind_from, station_from);
+				AIRoad.SetCurrentRoadType(last_road_type);
+				return true;
 			}
 		}
 	}
