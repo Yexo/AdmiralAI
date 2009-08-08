@@ -120,17 +120,25 @@ function TruckLineManager::ClosedStation(station)
 {
 	if (station.IsCargoDrop()) {
 		foreach (ind, list in this._ind_to_pickup_stations) {
+			local to_remove = [];
 			foreach (id, station_pair in list) {
 				if (station == station_pair[0]) {
-					list.remove(id);
+					to_remove.push(id);
 				}
+			}
+			foreach (id in to_remove) {
+				list.remove(id);
 			}
 		}
 	} else {
+		local to_remove = [];
 		foreach (ind, station2 in this._ind_to_drop_station) {
 			if (station == station2) {
-				this._ind_to_drop_station.rawdelete(ind);
+				to_remove.push(ind);
 			}
+		}
+		foreach (ind in to_remove) {
+			this._ind_to_drop_station.rawdelete(ind);
 		}
 	}
 }

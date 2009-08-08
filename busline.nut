@@ -23,6 +23,8 @@ class BusLine
 		this._vehicle_list = AIList();
 		this._depot_tile = depot_tile;
 		this._cargo = cargo;
+		this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
+		this.RenameGroup();
 		local station_id_from = station_from.GetStationID();
 		local station_id_to = station_to.GetStationID();
 		local loc_from = AIStation.GetLocation(station_id_from);
@@ -72,6 +74,7 @@ class BusLine
 	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
 	_cargo = null;        ///< The CargoID of the passengers we'll transport.
 	_engine_id = null;    ///< The EngineID of the vehicles on this route.
+	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
 	_distance = null;
 };
 
@@ -88,6 +91,11 @@ function BusLine::GetStationFrom()
 function BusLine::GetStationTo()
 {
 	return this._station_to;
+}
+
+function BusLine::RenameGroup()
+{
+	AIGroup.SetName(this._group_id, AICargo.GetCargoLabel(this._cargo) + ": " + AIStation.GetName(this._station_from.GetStationID()) + " - " + AIStation.GetName(this._station_to.GetStationID()));
 }
 
 function BusLine::ChangeStationFrom(new_station)
@@ -141,12 +149,12 @@ function BusLine::BuildVehicles(num)
 		} else {
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_NONE);
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_NONE);
-			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_NONE);
-			AIOrder.ChangeOrder(v, 2, AIOrder.AIOF_SERVICE_IF_NEEDED);
+			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED);
 		}
 		if (i % 2) AIVehicle.SkipToVehicleOrder(v, 1);
 		this._station_from.AddBusses(1, this._distance, max_speed);
 		this._station_to.AddBusses(1, this._distance, max_speed);
+		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
 	}
 	return true;
@@ -259,11 +267,18 @@ function BusLine::_FindEngineID()
 	list.KeepValue(1);
 	list.Valuate(this._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-	if (list.Count() > 0) {
-		this._engine_id = list.Begin();
-	} else {
-		this._engine_id = null;
+	local new_engine_id = null;
+	if (list.Count() != 0) {
+		new_engine_id = list.Begin();
 	}
+	if (this._engine_id != null && new_engine_id != null && this._engine_id != new_engine_id) {
+		AIGroup.SetAutoReplace(this._group_id, this._engine_id, new_engine_id);
+		this._station_from.RemoveBusses(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.RemoveBusses(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_from.AddBusses(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
+		this._station_to.AddBusses(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
+	}
+	this._engine_id = new_engine_id;
 }
 
 function BusLine::_VehicleRouteDistanceToTile(vehicle_id, tile)

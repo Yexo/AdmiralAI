@@ -25,8 +25,13 @@ require("townmanager.nut");
  *  - Build road stations up or down a hill.
  *  - Check if a station stopped accepting a certain cargo: if so, stop accepting more trucks for that cargo
  *     and send a few of the existing trucks to another destination.
+ *  - Experiment with giving busses a full load order on one of the two busstations.
+ *  - Try to transport oil from oilrigs to the coast with ships, and then to a refinery with road vehicles. Better
+ *     yet would be to directly transport it to oilrigs if distances is small enough, otherwise option 1.
  * @bug
  *  - Don't start / end with building a bridge / tunnel, as the tile before it might not be free.
+ *  - When building a truck station near a city, connecting it with the road may fail. Either demolish some tiles
+ *     or just pathfind from station to other industry, so even though the first part was difficult, a route is build.
  */
 
 /**
@@ -277,8 +282,8 @@ function AdmiralAI::Start()
 
 	if (!AIGameSettings.IsValid("vehicle.max_roadveh")) throw("vehicle.max_roadveh is not valid, please update!");
 	if (!AIGameSettings.IsValid("difficulty.vehicle_breakdowns")) throw("difficulty.vehicle_breakdowns is not valid, please update!");
-	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1) {
-		AILog.Info("Breakdowns are on, so enabling autorenew");
+	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1 || this.GetSetting("always_autorenew")) {
+		AILog.Info("Breakdowns are on or the setting always_autorenew is on, so enabling autorenew");
 		AICompany.SetAutoRenewMonths(-3);
 		AICompany.SetAutoRenewStatus(true);
 	} else {

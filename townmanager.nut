@@ -126,6 +126,7 @@ function TownManager::GetStation(pax_cargo_id)
 		foreach (offset in offsets) {
 			if (!AIRoad.IsRoadTile(t + offset)) continue;
 			if (!Utils.IsNearlyFlatTile(t + offset)) continue;
+			if (RouteFinder.FindRouteBetweenRects(t + offset, AITown.GetLocation(this._town_id), 0) == null) continue;
 			if (!AITile.IsBuildable(t) && !AITile.DemolishTile(t)) continue;
 			{
 				local testmode = AITestMode();

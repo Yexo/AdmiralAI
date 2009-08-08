@@ -117,6 +117,7 @@ function BusLineManager::CheckRoutes()
 
 function BusLineManager::ImproveLines()
 {
+	return;
 	for (local i = 0; i < this._routes.len(); i++) {
 		for (local j = i + 1; j < this._routes.len(); j++) {
 			if (this._routes[i].GetDistance() < 100 && this._routes[j].GetDistance() < 100) {
@@ -132,6 +133,8 @@ function BusLineManager::ImproveLines()
 						RouteFinder.FindRouteBetweenRects(AIStation.GetLocation(st_to1.GetStationID()), AIStation.GetLocation(st_to2.GetStationID()), 1) != null) {
 					this._routes[i].ChangeStationTo(st_from2);
 					this._routes[j].ChangeStationFrom(st_to1);
+					this._routes[i].RenameGroup();
+					this._routes[j].RenameGroup();
 				} else if (AIMap.DistanceManhattan(AIStation.GetLocation(st_from1.GetStationID()), AIStation.GetLocation(st_to2.GetStationID())) > 100 &&
 						AIMap.DistanceManhattan(AIStation.GetLocation(st_to1.GetStationID()), AIStation.GetLocation(st_from2.GetStationID())) > 100 &&
 						AIMap.DistanceManhattan(AIStation.GetLocation(st_from1.GetStationID()), AIStation.GetLocation(st_to2.GetStationID())) < 200 &&
@@ -140,6 +143,8 @@ function BusLineManager::ImproveLines()
 						RouteFinder.FindRouteBetweenRects(AIStation.GetLocation(st_to1.GetStationID()), AIStation.GetLocation(st_from2.GetStationID()), 1) != null) {
 					this._routes[i].ChangeStationTo(st_to2);
 					this._routes[j].ChangeStationTo(st_to1);
+					this._routes[i].RenameGroup();
+					this._routes[j].RenameGroup();
 				}
 			}
 		}
@@ -208,7 +213,7 @@ function BusLineManager::BuildNewLine()
 			}
 		}
 	}
-	this._max_distance_new_line += 30;
+	this._max_distance_new_line = min(300, this._max_distance_new_line + 30);
 	return false;
 }
 
@@ -278,7 +283,10 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				AILog.Info("Route ok");
 				manager.UseStation(station_from);
 				this._town_managers.rawget(town_to).UseStation(station_to);
-				local line = BusLine(station_from, station_to, manager.GetDepot(station_from), this._pax_cargo);
+				local depot_tile = manager.GetDepot(station_from);
+				if (depot_tile == null) depot_tile = this._town_managers.rawget(town_to).GetDepot(station_to);
+				if (depot_tile == null) break;
+				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo);
 				this._routes.push(line);
 				this._skip_to = 0;
 				return true;
@@ -289,7 +297,7 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		do_skip = false;
 	}
 	AILog.Info("Full town search done!");
-	this._max_distance_existing_route = min(400, this._max_distance_existing_route + 50);
+	this._max_distance_existing_route = min(300, this._max_distance_existing_route + 50);
 	this._skip_to = 0;
 	this._skip_from = 0;
 	this._last_search_finished = AIDate.GetCurrentDate();
