@@ -22,7 +22,7 @@ class AdmiralAI extends AIInfo {
 	function GetName()          { return "AdmiralAI"; }
 	function GetShortName()     { return "ADML"; }
 	function GetDescription()   { return "An AI that uses several types of transport"; }
-	function GetVersion()       { return 22; }
+	function GetVersion()       { return 23; }
 	function MinVersionToLoad() { return 21; }
 	function GetDate()          { return "2009-06-17"; }
 	function CreateInstance()   { return "AdmiralAI"; }
