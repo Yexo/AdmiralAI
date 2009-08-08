@@ -275,6 +275,9 @@ function TruckLineManager::IndustryClose(industry_id)
 	for (local i = 0; i < this._routes.len(); i++) {
 		local route = this._routes[i];
 		if (route.GetIndustryFrom() == industry_id || route.GetIndustryTo() == industry_id) {
+			if (route.GetIndustryTo() == industry_id) {
+				this._unbuild_routes[route._cargo].rawset(route.GetIndustryFrom(), 1);
+			}
 			route.CloseRoute();
 			this._routes.remove(i);
 			i--;
@@ -297,6 +300,8 @@ function TruckLineManager::IndustryOpen(industry_id)
 
 function TruckLineManager::BuildNewLine()
 {
+	local last_road_type = AIRoad.GetCurrentRoadType();
+	AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
 	local cargo_list = AICargoList();
 	/* Try better-earning cargos first. */
 	cargo_list.Valuate(AICargo.GetCargoIncome, 80, 40);
@@ -335,17 +340,24 @@ function TruckLineManager::BuildNewLine()
 				local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
 				if (route == null) {
 					local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.2, 20);
-					if (ret != 0) return false;
+					if (ret != 0) {v
+						AIRoad.SetCurrentRoadType(last_road_type);
+						return false;
+					}
 					route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
 					if (route == null) {AILog.Warning("Couldn't find the route we just built"); continue; }
 					local route2 = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_to), AIIndustry.GetLocation(ind_from), 8);
 					if (route2 == null) {
 						ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.2, 20);
-						if (ret != 0) return false;
+						if (ret != 0) {
+							AIRoad.SetCurrentRoadType(last_road_type);
+							return false;
+						}
 						route2 = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_to), AIIndustry.GetLocation(ind_from), 8);
 						if (route2 == null) {
 							AILog.Warning("Couldn't find the second route we just built");
-							return;
+							AIRoad.SetCurrentRoadType(last_road_type);
+							return false;
 						}
 					}
 				}
@@ -366,18 +378,24 @@ function TruckLineManager::BuildNewLine()
 					this._routes.push(line);
 					AdmiralAI.TransportCargo(cargo, ind_from);
 					this._UsePickupStation(ind_from, station_from);
+					AIRoad.SetCurrentRoadType(last_road_type);
 					return true;
 				}
 			}
 		}
 	}
+	AIRoad.SetCurrentRoadType(last_road_type);
 	return false;
 }
 
 function TruckLineManager::NewLineExistingRoad()
 {
 	if (AIDate.GetCurrentDate() - this._last_search_finished < 10) return false;
-	return this._NewLineExistingRoadGenerator(40);
+	local last_road_type = AIRoad.GetCurrentRoadType();
+	AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
+	local ret = this._NewLineExistingRoadGenerator(40);
+	AIRoad.SetCurrentRoadType(last_road_type);
+	return ret;
 }
 
 function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)

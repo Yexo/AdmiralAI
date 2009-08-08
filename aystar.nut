@@ -193,7 +193,7 @@ function AyStar::FindPath(iterations)
 
 	if (this._open.Count() > 0) return false;
 	this._CleanPath();
-	AILog.Warning("No path: " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+	//AILog.Warning("No path: " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
 	return null;
 }
 

@@ -134,7 +134,15 @@ function StationManager::GetPoints(distance, speed)
 	local ret = 5254 - 109 * distance + 0.426016 * distance * distance + 47.5406 * speed + 1.42885 * distance * speed -
 			0.00784304 * distance * distance * speed + 0.486821 * speed * speed - 0.0161983 * distance * speed * speed +
 			0.0000698203 * distance * distance * speed * speed;
-	return ret.tointeger();
+	return max(2000, ret.tointeger());
+}
+
+function StationManager::HasArticulatedBusStop()
+{
+	local list = AITileList_StationType(this._station_id, AIStation.STATION_BUS_STOP);
+	list.Valuate(AIRoad.IsDriveThroughRoadStationTile);
+	list.KeepValue(1);
+	return !list.IsEmpty();
 }
 
 function StationManager::CloseStation()
@@ -203,7 +211,7 @@ function StationManager::CanAddBusses(num, distance, speed)
 {
 	local points_per_bus = StationManager.GetPoints(distance, speed);
 	if (this._bus_points < 70000) return ((70000 - this._bus_points) / points_per_bus).tointeger();
-	return ((this._bus_points - 70000 + points_per_bus - 1) / points_per_bus).tointeger()
+	return ((70000 - this._bus_points - points_per_bus + 1) / points_per_bus).tointeger()
 }
 
 function StationManager::AddBusses(num, distance, speed)

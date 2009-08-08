@@ -33,13 +33,15 @@ class RoadLine
 	 * @param depot_tile A TileIndex on which a road depot has been built.
 	 * @param cargo The CargoID of the cargo we'll transport.
 	 */
-	constructor(station_from, station_to, depot_tile, cargo, create_group)
+	constructor(station_from, station_to, depot_tile, cargo, create_group, support_articulated = false, road_type = null)
 	{
 		this._station_from = station_from;
 		this._station_to = station_to;
 		this._vehicle_list = AIList();
 		this._depot_tile = depot_tile;
 		this._cargo = cargo;
+		this._support_articulated = support_articulated;
+		this._road_type = road_type == null ? AIRoad.GetCurrentRoadType() : road_type;
 		if (create_group) {
 			this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
 			this.RenameGroup();
@@ -70,6 +72,8 @@ class RoadLine
 	_engine_id = null;    ///< The EngineID of the vehicles on this route.
 	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
 	_distance = null;     ///< The manhattan distance between the two stations.
+	_support_articulated = null;
+	_road_type = null;
 
 };
 
@@ -105,9 +109,11 @@ function RoadLine::_FindEngineID()
 	this.UpdateVehicleList();
 	local list = AIEngineList(AIVehicle.VEHICLE_ROAD);
 	list.Valuate(AIEngine.GetRoadType);
-	list.KeepValue(AIRoad.ROADTYPE_ROAD);
-	list.Valuate(AIEngine.IsArticulated);
-	list.KeepValue(0);
+	list.KeepValue(this._road_type);
+	if (!this._support_articulated) {
+		list.Valuate(AIEngine.IsArticulated);
+		list.KeepValue(0);
+	}
 	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
 	list.KeepValue(1);
 	list.Valuate(this._SortEngineList);

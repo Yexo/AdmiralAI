@@ -1,6 +1,6 @@
 # Configuration
 AI_NAME = AdmiralAI
-AI_VERSION = 12
+AI_VERSION = 13
 FILES = COPYING *.nut
 # End of configuration
 
@@ -15,3 +15,5 @@ bundle: Makefile $(FILES)
 	@cp $(FILES) "$(NAME_VERSION)"
 	@tar -cf "$(TAR_NAME)" "$(NAME_VERSION)"
 	@rm -r "$(NAME_VERSION)"
+
+	

@@ -320,7 +320,7 @@ function Rail::_Neighbours(path, cur_node, self)
 				if (path.GetParent() != null && path.GetParent().GetParent() != null &&
 					next_tile - cur_node == path.GetParent().GetParent().GetTile() - path.GetParent().GetTile()) continue;
 				if (AIRail.AreTilesConnected(path.GetParent().GetTile(), cur_node, next_tile) ||
-						((can_split || (!AIRail.IsRailTile(path.GetParent().GetTile()) && AIRail.IsRailTile(next_tile))) && AIRail.BuildRail(path.GetParent().GetTile(), cur_node, next_tile))) {
+						(((can_split && !AIRail.IsRailTile(next_tile)) || (!AIRail.IsRailTile(path.GetParent().GetTile()) && AIRail.IsRailTile(next_tile))) && AIRail.BuildRail(path.GetParent().GetTile(), cur_node, next_tile))) {
 					tiles.push([next_tile, self._GetDirection(path.GetParent().GetTile(), cur_node, next_tile, false)]);
 				}
 			}

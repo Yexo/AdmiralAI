@@ -34,7 +34,7 @@ class TownManager
 		this._town_id = town_id;
 		this._unused_stations = [];
 		this._used_stations = [];
-		this._depot_tile = null;
+		this._depot_tiles = {};
 		this._station_failed_date = 0;
 		this._airport_failed_date = 0;
 		this._airports = [];
@@ -66,7 +66,7 @@ class TownManager
 	_town_id = null;             ///< The TownID this TownManager is managing.
 	_unused_stations = null;     ///< An array with all StationManagers of unused stations within this town.
 	_used_stations = null;       ///< An array with all StationManagers of in use stations within this town.
-	_depot_tile = null;          ///< The TileIndex of a road depot tile inside this town.
+	_depot_tiles = null;         ///< A mapping of road types to tileindexes with a depot.
 	_station_failed_date = null; ///< Don't try to build a new station within 60 days of failing to build one.
 	_airport_failed_date = null; ///< Don't try to build a new airport within 60 days of failing to build one.
 	_airports = null;
@@ -148,7 +148,14 @@ function TownManager::ScanMap()
 	depot_list.KeepValue(1);
 	depot_list.Valuate(AIMap.DistanceManhattan, AITown.GetLocation(this._town_id));
 	depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
-	if (depot_list.Count() > 0) this._depot_tile = depot_list.Begin();
+	foreach (tile, dis in depot_list) {
+		if (!this._depot_tiles.rawin(AIRoad.ROADTYPE_ROAD) && AIRoad.HasRoadType(tile, AIRoad.ROADTYPE_ROAD)) {
+			this._depot_tiles.rawset(AIRoad.ROADTYPE_ROAD, tile);
+		}
+		if (!this._depot_tiles.rawin(AIRoad.ROADTYPE_TRAM) && AIRoad.HasRoadType(tile, AIRoad.ROADTYPE_TRAM)) {
+			this._depot_tiles.rawset(AIRoad.ROADTYPE_TRAM, tile);
+		}
+	}
 }
 
 function TownManager::CanPlaceAirport(tile, type)
@@ -273,12 +280,12 @@ function TownManager::UseStation(station)
 
 function TownManager::GetDepot(station_manager)
 {
-	if (this._depot_tile == null) {
+	if (!this._depot_tiles.rawin(AIRoad.GetCurrentRoadType())) {
 		local stationtiles = AITileList_StationType(station_manager.GetStationID(), AIStation.STATION_BUS_STOP);
 		stationtiles.Valuate(AIRoad.GetRoadStationFrontTile);
-		this._depot_tile =  AdmiralAI.BuildDepot(stationtiles.GetValue(stationtiles.Begin()));
+		this._depot_tiles.rawset(AIRoad.GetCurrentRoadType(), AdmiralAI.BuildDepot(stationtiles.GetValue(stationtiles.Begin())));
 	}
-	return this._depot_tile;
+	return this._depot_tiles.rawget(AIRoad.GetCurrentRoadType());
 }
 
 function TownManager::CanGetStation()
@@ -289,6 +296,35 @@ function TownManager::CanGetStation()
 	if (AIDate.GetCurrentDate() - this._station_failed_date < 60) return false;
 	if (max(1, (AITown.GetPopulation(this._town_id) / 300).tointeger()) > this._used_stations.len()) return true;
 	return false;
+}
+
+function TownManager::CanBuildDrivethroughStop(tile)
+{
+	local test = AITestMode();
+
+	if (AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(0, 1)) || AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(0, -1))) {
+		if (AIRoad.BuildRoadStation(tile, tile + AIMap.GetTileIndex(0, 1), false, true, false)) return tile + AIMap.GetTileIndex(0, 1);
+	} else if (AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(1, 0)) || AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(-1, 0))) {
+		if (AIRoad.BuildRoadStation(tile, tile + AIMap.GetTileIndex(1, 0), false, true, false)) return tile + AIMap.GetTileIndex(1, 0);
+	}
+	return 0;
+}
+
+function TownManager::SupportNormalStop(road_type)
+{
+	if (road_type == AIRoad.ROADTYPE_ROAD) return true;
+	return false;
+}
+
+function TownManager::GetNeighbourRoadCount(tile)
+{
+	local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),
+	                 AIMap.GetTileIndex(1,0), AIMap.GetTileIndex(-1,0)];
+	local num = 0;
+	foreach (offset in offsets) {
+		if (AIRoad.IsRoadTile(tile + offset)) num++;
+	}
+	return num;
 }
 
 function TownManager::GetStation(pax_cargo_id)
@@ -312,10 +348,6 @@ function TownManager::GetStation(pax_cargo_id)
 	if (population > 35000) radius += 5;
 	if (population > 45000) radius += 5;
 	AdmiralAI.AddSquare(list, town_center, radius);
-	list.Valuate(AIRoad.GetNeighbourRoadCount);
-	list.KeepAboveValue(0);
-	list.Valuate(AIRoad.IsRoadTile);
-	list.KeepValue(0);
 	list.Valuate(AdmiralAI.GetRealHeight);
 	list.KeepAboveValue(0);
 	list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
@@ -327,6 +359,44 @@ function TownManager::GetStation(pax_cargo_id)
 	}
 	list.Valuate(AITile.GetCargoAcceptance, pax_cargo_id, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
 	list.KeepAboveValue(25);
+	list.Valuate(TownManager.GetNeighbourRoadCount);
+	list.KeepAboveValue(0);
+
+	/* First try to build a drivethough road stop. */
+	local drivethrough_list = AIList();
+	drivethrough_list.AddList(list);
+	drivethrough_list.KeepBelowValue(3);
+	drivethrough_list.Valuate(AIMap.DistanceManhattan, town_center);
+	drivethrough_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	foreach (tile, d in drivethrough_list) {
+		local front_tile = TownManager.CanBuildDrivethroughStop(tile);
+		if (front_tile <= 0) continue;
+		local back_tile = tile + (tile - front_tile);
+		if (!(AIRoad.AreRoadTilesConnected(front_tile, tile) && AIRoad.AreRoadTilesConnected(tile, back_tile))) {
+			if (!AIRoad.BuildRoad(front_tile, back_tile)) continue;
+		}
+		if (RouteFinder.FindRouteBetweenRects(front_tile, back_tile, 0, [tile]) == null) {
+			if (RouteBuilder.BuildRoadRoute(RPF(), [front_tile], [back_tile], 1, 20, [tile]) != 0) {
+				AILog.Warning("Front side could not be connected to back side");
+				continue;
+			}
+		}
+		if (!AIRoad.BuildRoadStation(tile, front_tile, false, true, false)) {
+			AILog.Warning("Drivethrough stop could not be build");
+			continue;
+		}
+		local manager = StationManager(AIStation.GetStationID(tile), null);
+		this._unused_stations.push(manager);
+		return manager;
+	}
+
+	if (!this.SupportNormalStop(AIRoad.GetCurrentRoadType())) return null;
+
+	/* No drivethrough station could be build, so try a normal station. */
+	rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return null;
+	list.Valuate(AIRoad.IsRoadTile);
+	list.KeepValue(0);
 	list.Valuate(AIMap.DistanceManhattan, town_center);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 	foreach (t, dis in list) {

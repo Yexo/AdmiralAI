@@ -87,6 +87,11 @@ class AdmiralAI extends AIController
 		}
 
 		this._save_data = null;
+
+		this.last_vehicle_check = 0;
+		this.last_cash_output = AIDate.GetCurrentDate();
+		this.last_improve_buslines_date = 0;
+		this.need_vehicle_check = false;
 	}
 
 	/**
@@ -197,6 +202,10 @@ class AdmiralAI extends AIController
 	_train_manager = null;  ///< The TrainManager managing all train routes.
 	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
 	_save_data = null;      ///< Cache of save data during load.
+	last_vehicle_check = null;
+	last_cash_output = null;
+	last_improve_buslines_date = null;
+	need_vehicle_check = null;
 };
 
 function AdmiralAI::Save()
@@ -345,13 +354,14 @@ function AdmiralAI::BuildDepot(roadtile)
 				continue;
 			}
 			if (AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) continue;
-			if (AIRoad.IsRoadTile(cur_tile + offset)) continue
+			if (AIRoad.IsRoadTile(cur_tile + offset)) continue;
 			if (!AITile.DemolishTile(cur_tile + offset)) continue;
 			local h = AdmiralAI.GetRealHeight(cur_tile);
 			local h2 = AdmiralAI.GetRealHeight(cur_tile + offset);
 			if (h2 > h) AITile.LowerTile(cur_tile + offset, AITile.GetSlope(cur_tile + offset));
 			if (h > h2) AITile.RaiseTile(cur_tile + offset, AITile.GetComplementSlope(AITile.GetSlope(cur_tile + offset)));
 			if (!AIRoad.BuildRoad(cur_tile + offset, cur_tile)) continue;
+			if (!AITile.DemolishTile(cur_tile + offset)) continue;
 			if (AIRoad.BuildRoadDepot(cur_tile + offset, cur_tile)) return cur_tile + offset;
 		}
 	}
@@ -438,6 +448,32 @@ function AdmiralAI::TransportCargo(cargo, ind)
 	main_instance._train_manager.TransportCargo(cargo, ind);
 }
 
+function AdmiralAI::DoMaintenance()
+{
+	this.GetEvents();
+	this.HandleEvents();
+	this.SendVehicleToSellToDepot();
+	if (AIDate.GetCurrentDate() - this.last_cash_output > 90) {
+		local curdate = AIDate.GetCurrentDate();
+		AILog.Info("Current date: " + AIDate.GetYear(curdate) + "-" + AIDate.GetMonth(curdate) + "-" + AIDate.GetDayOfMonth(curdate));
+		AILog.Info("Cash - loan: " + AICompany.GetBankBalance(AICompany.MY_COMPANY) + " - " + AICompany.GetLoanAmount());
+		this.last_cash_output = AIDate.GetCurrentDate();
+	}
+	this.GetMoney(200000);
+	if (AIDate.GetCurrentDate() - this.last_improve_buslines_date > 200) {
+		this._bus_manager.ImproveLines();
+		this.last_improve_buslines_date = AIDate.GetCurrentDate();
+	}
+	this.GetMoney(200000);
+	if (AIDate.GetCurrentDate() - this.last_vehicle_check > 11 || this.need_vehicle_check) {
+		local ret1 = this._bus_manager.CheckRoutes();
+		local ret2 = this._truck_manager.CheckRoutes();
+		local ret3 = this._train_manager.CheckRoutes();
+		this.last_vehicle_check = AIDate.GetCurrentDate();
+		this.need_vehicle_check = ret1 || ret2 || ret3;
+	}
+}
+
 function AdmiralAI::Start()
 {
 	Utils.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "difficulty.vehicle_breakdowns"]);
@@ -469,44 +505,36 @@ function AdmiralAI::Start()
 	this._save_data = null;
 	AILog.Info("Loading done");
 
-	local last_vehicle_check = 0;
-	local last_cash_output = AIDate.GetCurrentDate();
-	local last_improve_buslines_date = 0;
 	local build_busses = false;
-	local need_vehicle_check = false;
 	local build_road_route = 3;
+	local last_type = AIRoad.ROADTYPE_ROAD;
+	AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
 	while(1) {
-		this.GetEvents();
-		this.HandleEvents();
-		this.SendVehicleToSellToDepot();
-		if (AIDate.GetCurrentDate() - last_cash_output > 90) {
-			local curdate = AIDate.GetCurrentDate();
-			AILog.Info("Current date: " + AIDate.GetYear(curdate) + "-" + AIDate.GetMonth(curdate) + "-" + AIDate.GetDayOfMonth(curdate));
-			AILog.Info("Cash - loan: " + AICompany.GetBankBalance(AICompany.MY_COMPANY) + " - " + AICompany.GetLoanAmount());
-			last_cash_output = AIDate.GetCurrentDate();
-		}
-		this.GetMoney(200000);
-		if (AIDate.GetCurrentDate() - last_improve_buslines_date > 200) {
-			this._bus_manager.ImproveLines();
-			last_improve_buslines_date = AIDate.GetCurrentDate();
-		}
-		this.GetMoney(200000);
-		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) < 15000) {this.Sleep(5); continue;}
-		if (AIDate.GetCurrentDate() - last_vehicle_check > 11 || need_vehicle_check) {
-			this.GetMoney(200000);
-			local ret1 = this._bus_manager.CheckRoutes();
-			local ret2 = this._truck_manager.CheckRoutes();
-			local ret3 = this._train_manager.CheckRoutes();
-			last_vehicle_check = AIDate.GetCurrentDate();
-			need_vehicle_check = ret1 || ret2 || ret3;
-		}
-		if (need_vehicle_check) {
+		this.DoMaintenance();
+		if (this.need_vehicle_check) {
 			this.Sleep(20);
 			continue;
 		}
+		last_type = last_type == AIRoad.ROADTYPE_ROAD ? AIRoad.ROADTYPE_TRAM : AIRoad.ROADTYPE_ROAD;
+		if (AIRoad.IsRoadTypeAvailable(last_type)) AIRoad.SetCurrentRoadType(last_type);
 		local build_route = false;
 		this.GetMoney(200000);
-		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 180000) {
+		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 390000) {
+			local veh_list = AIVehicleList();
+			veh_list.Valuate(AIVehicle.GetVehicleType);
+			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
+			if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_planes")) {
+				build_route = this._train_manager.BuildNewRoute();
+				this.GetMoney(200000);
+			}
+			veh_list = AIVehicleList();
+			veh_list.Valuate(AIVehicle.GetVehicleType);
+			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
+			if (AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count() && this.GetSetting("use_trains")) {
+				build_route = this._train_manager.BuildNewRoute() || build_route;
+			}
+			build_road_route = 3;
+		} else if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 180000) {
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
@@ -533,28 +561,28 @@ function AdmiralAI::Start()
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000) {
 				if (build_busses) {
 					if (this.GetSetting("use_busses")) build_route = this._bus_manager.NewLineExistingRoad();
-					if (this.GetSetting("use_trucks")) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
+					if (this.GetSetting("use_trucks") && !build_route) build_route = this._truck_manager.NewLineExistingRoad();
 				} else {
 					if (this.GetSetting("use_trucks")) build_route = this._truck_manager.NewLineExistingRoad();
-					if (this.GetSetting("use_busses")) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
+					if (this.GetSetting("use_busses") && !build_route) build_route = this._bus_manager.NewLineExistingRoad();
 				}
 			}
 			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000) {
 				if (build_busses) {
 					if (this.GetSetting("use_busses")) build_route = this._bus_manager.BuildNewLine();
-					if (this.GetSetting("use_trucks")) if (!build_route) build_route = this._truck_manager.BuildNewLine();
+					if (this.GetSetting("use_trucks") && !build_route) build_route = this._truck_manager.BuildNewLine();
 				} else {
 					if (this.GetSetting("use_trucks")) build_route = this._truck_manager.BuildNewLine();
-					if (this.GetSetting("use_busses")) if (!build_route) build_route = this._bus_manager.BuildNewLine();
+					if (this.GetSetting("use_busses") && !build_route) build_route = this._bus_manager.BuildNewLine();
 				}
 			}
 			// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.
 			//build_busses = !build_busses;
 			if (build_route) build_road_route--;
 		}
+		this.GetMoney(200000);
 		if (this.GetSetting("build_statues")) {
-			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) + AICompany.GetMaxLoanAmount() - AICompany.GetLoanAmount() > 500000) this.GetMoney(1000000);
-			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) > 500000) {
+			if (AICompany.GetLoanAmount() == 0 && AICompany.GetBankBalance(AICompany.MY_COMPANY) > 200000) {
 				local town_list = AITownList();
 				town_list.Valuate(AITown.HasStatue);
 				town_list.RemoveValue(1);

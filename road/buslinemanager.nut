@@ -148,8 +148,6 @@ function BusLineManager::AfterLoad()
 	local vehicle_list = AIVehicleList();
 	vehicle_list.Valuate(AIVehicle.GetVehicleType);
 	vehicle_list.KeepValue(AIVehicle.VEHICLE_ROAD);
-	vehicle_list.Valuate(AIVehicle.GetRoadType);
-	vehicle_list.KeepValue(AIRoad.ROADTYPE_ROAD);
 	vehicle_list.Valuate(AIVehicle.GetCapacity, this._pax_cargo);
 	vehicle_list.KeepAboveValue(0);
 	local st_from = {};
@@ -191,7 +189,8 @@ function BusLineManager::AfterLoad()
 			depot_list.Valuate(AIMap.DistanceManhattan, AIStation.GetLocation(station_a));
 			depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			local depot_tile = depot_list.Begin();
-			local line = BusLine(station_manager_a, station_manager_b, depot_tile, this._pax_cargo, true);
+			local articulated = station_manager_a.HasArticulatedBusStop() && station_manager_b.HasArticulatedBusStop();
+			local line = BusLine(station_manager_a, station_manager_b, depot_tile, this._pax_cargo, articulated);
 			this._routes.push(line);
 			st_from.rawset(station_a, line);
 			st_to.rawset(station_b, null);
@@ -218,6 +217,7 @@ function BusLineManager::CheckRoutes()
 
 function BusLineManager::ImproveLines()
 {
+	return;
 	for (local i = 0; i < this._routes.len(); i++) {
 		for (local j = i + 1; j < this._routes.len(); j++) {
 			if (this._routes[i].GetDistance() < 100 && this._routes[j].GetDistance() < 100) {
@@ -255,9 +255,9 @@ function BusLineManager::BuildNewLine()
 {
 	local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
 	engine_list.Valuate(AIEngine.GetRoadType);
-	engine_list.KeepValue(AIRoad.ROADTYPE_ROAD);
-	engine_list.Valuate(AIEngine.IsArticulated);
-	engine_list.KeepValue(0);
+	engine_list.KeepValue(AIRoad.GetCurrentRoadType());
+// 	engine_list.Valuate(AIEngine.IsArticulated);
+// 	engine_list.KeepValue(0);
 	engine_list.Valuate(AIEngine.CanRefitCargo, this._pax_cargo);
 	engine_list.KeepValue(1);
 	if (engine_list.Count() == 0) return;
@@ -307,7 +307,8 @@ function BusLineManager::BuildNewLine()
 				local depot_tile = manager.GetDepot(station_from);
 				if (depot_tile == null) depot_tile = this._town_managers.rawget(town_to).GetDepot(station_to);
 				if (depot_tile == null) break;
-				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo, false);
+				local articulated = station_from.HasArticulatedBusStop() && station_to.HasArticulatedBusStop();
+				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo, false, articulated);
 				this._routes.push(line);
 				return true;
 			}
@@ -337,9 +338,7 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 {
 	local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
 	engine_list.Valuate(AIEngine.GetRoadType);
-	engine_list.KeepValue(AIRoad.ROADTYPE_ROAD);
-	engine_list.Valuate(AIEngine.IsArticulated);
-	engine_list.KeepValue(0);
+	engine_list.KeepValue(AIRoad.GetCurrentRoadType());
 	engine_list.Valuate(AIEngine.CanRefitCargo, this._pax_cargo);
 	engine_list.KeepValue(1);
 	if (engine_list.Count() == 0) return;
@@ -386,7 +385,8 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				local depot_tile = manager.GetDepot(station_from);
 				if (depot_tile == null) depot_tile = this._town_managers.rawget(town_to).GetDepot(station_to);
 				if (depot_tile == null) break;
-				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo, false);
+				local articulated = station_from.HasArticulatedBusStop() && station_to.HasArticulatedBusStop();
+				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo, false, articulated);
 				this._routes.push(line);
 				this._skip_to = 0;
 				return true;

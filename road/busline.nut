@@ -35,9 +35,9 @@ class BusLine extends RoadLine
 	 * @param depot_tile A TileIndex on which a road depot has been built.
 	 * @param cargo The CargoID of the passengers we'll transport.
 	 */
-	constructor(station_from, station_to, depot_tile, cargo, loaded)
+	constructor(station_from, station_to, depot_tile, cargo, loaded, support_articulated = false)
 	{
-		::RoadLine.constructor(station_from, station_to, depot_tile, cargo, true);
+		::RoadLine.constructor(station_from, station_to, depot_tile, cargo, true, support_articulated);
 		if (!loaded) this.BuildVehicles(2);
 	}
 
@@ -74,7 +74,7 @@ function BusLine::ChangeStationFrom(new_station)
 	if (this._vehicle_list.Count() > 0) {
 		local v = this._vehicle_list.Begin();
 		AIOrder.RemoveOrder(v, 0);
-		AIOrder.InsertOrder(v, 0, AIStation.GetLocation(new_station.GetStationID()), AIOrder.AIOF_NONE);
+		AIOrder.InsertOrder(v, 0, AIStation.GetLocation(new_station.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 	}
 	this._station_from = new_station;
 	this._distance = AIMap.DistanceManhattan(AIStation.GetLocation(this._station_from.GetStationID()), AIStation.GetLocation(this._station_to.GetStationID()));
@@ -89,7 +89,7 @@ function BusLine::ChangeStationTo(new_station)
 	if (this._vehicle_list.Count() > 0) {
 		local v = this._vehicle_list.Begin();
 		AIOrder.RemoveOrder(v, 1);
-		AIOrder.InsertOrder(v, 1, AIStation.GetLocation(new_station.GetStationID()), AIOrder.AIOF_NONE);
+		AIOrder.InsertOrder(v, 1, AIStation.GetLocation(new_station.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 	}
 	this._station_to = new_station;
 	this._distance = AIMap.DistanceManhattan(AIStation.GetLocation(this._station_from.GetStationID()), AIStation.GetLocation(this._station_to.GetStationID()));
@@ -129,11 +129,9 @@ function BusLine::BuildVehicles(num)
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
-			local acceptance_from = AITile.GetCargoAcceptance(AIStation.GetLocation(this._station_from.GetStationID()), this._cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
-			local acceptance_to = AITile.GetCargoAcceptance(AIStation.GetLocation(this._station_to.GetStationID()), this._cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_NONE);
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_NONE);
-			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 		}
 		if (i % 2) AIVehicle.SkipToVehicleOrder(v, 1);
 		this._station_from.AddBusses(1, this._distance, max_speed);
@@ -160,11 +158,12 @@ function BusLine::CheckVehicles()
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::vehicles_to_sell.AddItem(v, 0);
-		local max_speed = AIEngine.GetMaxSpeed(AIVehicle.GetVehicleType(v));
+		local max_speed = AIEngine.GetMaxSpeed(this._engine_id);
 		this._station_from.RemoveBusses(1, this._distance, max_speed);
 		this._station_to.RemoveBusses(1, this._distance, max_speed);
 		build_new = false;
 	}
+	this.UpdateVehicleList();
 
 	this._vehicle_list.Valuate(AIVehicle.GetState);
 	foreach (vehicle, state in this._vehicle_list) {

@@ -149,7 +149,8 @@ function TrainManager::Load(data)
 		}
 	}
 
-	if (data.rawin("routes")) {
+	/* TODO: fix and then enable loading of routes. */
+	if (false && data.rawin("routes")) {
 		foreach (route_array in data.rawget("routes")) {
 			local station_from = null;
 			foreach (station in this._ind_to_pickup_stations.rawget(route_array[0])) {
@@ -159,8 +160,8 @@ function TrainManager::Load(data)
 				}
 			}
 			local station_to = null;
-			if (this._ind_to_drop_station.rawin(route_array[2])) {
-				local station = this._ind_to_drop_station.rawget(route_array[2]);
+			if (this._ind_to_drop_stations.rawin(route_array[2])) {
+				local station = this._ind_to_drop_stations.rawget(route_array[2]);
 				if (station.GetStationID() == route_array[3]) {
 					station_to = station;
 				}
@@ -223,6 +224,9 @@ function TrainManager::IndustryClose(industry_id)
 	for (local i = 0; i < this._routes.len(); i++) {
 		local route = this._routes[i];
 		if (route.GetIndustryFrom() == industry_id || route.GetIndustryTo() == industry_id) {
+			if (route.GetIndustryTo() == industry_id) {
+				this._unbuild_routes[route._cargo].rawset(route.GetIndustryFrom(), 1);
+			}
 			route.CloseRoute();
 			this._routes.remove(i);
 			i--;
@@ -245,6 +249,8 @@ function TrainManager::IndustryOpen(industry_id)
 
 function TrainManager::BuildNewRoute()
 {
+	AIRail.SetCurrentRailType(0);
+	if (!AIRail.IsRailTypeAvailable(AIRail.GetCurrentRailType())) return false;
 	local cargo_list = AICargoList();
 	/* Try better-earning cargos first. */
 	cargo_list.Valuate(AICargo.GetCargoIncome, 80, 40);
@@ -271,7 +277,7 @@ function TrainManager::BuildNewRoute()
 				local ret = RailRouteBuilder.ConnectRailStations(station_from.GetStationID(), station_to.GetStationID());
 				if (typeof(ret) == "array") {
 					AILog.Info("Rail route build succesfully");
-					local line = TrainLine(ind_from, station_from, ind_to, station_to, ret[0], cargo, false, this._platform_length);
+					local line = TrainLine(ind_from, station_from, ind_to, station_to, ret, cargo, false, this._platform_length);
 					this._routes.push(line);
 					AdmiralAI.TransportCargo(cargo, ind_from);
 					this._UsePickupStation(ind_from, station_from);

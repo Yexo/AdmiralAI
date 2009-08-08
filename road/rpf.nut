@@ -143,7 +143,7 @@ class RPF.Cost
 	}
 }
 
-function RPF::InitializePath(sources, goals, max_length_multiplier, max_length_offset)
+function RPF::InitializePath(sources, goals, max_length_multiplier, max_length_offset, ignored_tiles = [])
 {
 	local nsources = [];
 	foreach (node in sources) {
@@ -151,7 +151,7 @@ function RPF::InitializePath(sources, goals, max_length_multiplier, max_length_o
 	}
 	this._max_path_length = max_length_offset + max_length_multiplier * AIMap.DistanceManhattan(sources[0], goals[0]);
 	this._goal_estimate_tile = goals[0];
-	this._pathfinder.InitializePath(nsources, goals);
+	this._pathfinder.InitializePath(nsources, goals, ignored_tiles);
 }
 
 function RPF::FindPath(iterations)
@@ -235,7 +235,11 @@ function RPF::_Cost(path, new_tile, new_direction, self)
 	}
 
 	if (!AIRoad.AreRoadTilesConnected(prev_tile, new_tile)) {
-		cost += self._cost_no_existing_road;
+		if (AIRoad.IsRoadTile(new_tile)) {
+			cost += self._cost_no_existing_road / 2;
+		} else {
+			cost += self._cost_no_existing_road;
+		}
 	}
 
 	return path.GetCost() + cost;

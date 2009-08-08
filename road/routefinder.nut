@@ -80,7 +80,7 @@ class RouteFinder
 	static function _CheckDirection(tile, existing_direction, new_direction, callback_param);
 };
 
-function RouteFinder::FindRouteBetweenRects(tile_a, tile_b, radius)
+function RouteFinder::FindRouteBetweenRects(tile_a, tile_b, radius, ignored_tiles = [])
 {
 	local sources = [];
 	local max_x = AIMap.GetTileX(tile_a) + radius;
@@ -104,7 +104,7 @@ function RouteFinder::FindRouteBetweenRects(tile_a, tile_b, radius)
 	}
 	if (goals.len() == 0) return null;
 
-	_RouteFinder_pf.InitializePath(sources, goals);
+	_RouteFinder_pf.InitializePath(sources, goals, ignored_tiles);
 	RouteFinder.max_cost <- 20 + (AIMap.DistanceManhattan(tile_a, tile_b) * 1.2).tointeger();
 	RouteFinder.goal_tile <- tile_b;
 	local path = _RouteFinder_pf.FindPath(-1);

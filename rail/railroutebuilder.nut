@@ -48,16 +48,26 @@ function RailRouteBuilder::DetectPlatformLength(station)
 			length++;
 			tile += AIMap.GetTileIndex(0, 1);
 		}
-		if (AIRail.GetRailTracks(tile_before) != (AIRail.RAILTRACK_NW_SE | AIRail.RAILTRACK_SW_SE | AIRail.RAILTRACK_NW_SW) &&
-			AIRail.GetRailTracks(tile) != (AIRail.RAILTRACK_NW_SE | AIRail.RAILTRACK_SW_SE | AIRail.RAILTRACK_NW_SW)) length -= 2;
+		length -= 2;
+		if (((!AIRail.IsRailStationTile(tile_before)) && AICompany.IsMine(AITile.GetOwner(tile_before)) && AIRail.IsRailTile(tile_before) &&
+				(AIRail.GetRailTracks(tile_before) & AIRail.RAILTRACK_NW_SE) != 0) ||
+				((!AIRail.IsRailStationTile(tile)) && AICompany.IsMine(AITile.GetOwner(tile)) && AIRail.IsRailTile(tile) &&
+				(AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NW_SE) != 0)) {
+			length += 2;
+		}
 	} else {
 		local tile_before = tile + AIMap.GetTileIndex(-1, 0);
 		while (AIStation.GetStationID(tile) == station && AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NE_SW) {
 			length++;
 			tile += AIMap.GetTileIndex(1, 0);
 		}
-		if (AIRail.GetRailTracks(tile_before) != (AIRail.RAILTRACK_NE_SW | AIRail.RAILTRACK_SW_SE | AIRail.RAILTRACK_NE_SE) &&
-			AIRail.GetRailTracks(tile) != (AIRail.RAILTRACK_NE_SW | AIRail.RAILTRACK_SW_SE | AIRail.RAILTRACK_NE_SE)) length -= 2;
+		length -= 2;
+		if ((!AIRail.IsRailStationTile(tile_before) && AICompany.IsMine(AITile.GetOwner(tile_before)) && AIRail.IsRailTile(tile_before) &&
+				(AIRail.GetRailTracks(tile_before) & AIRail.RAILTRACK_NE_SW) != 0) ||
+				(!AIRail.IsRailStationTile(tile) && AICompany.IsMine(AITile.GetOwner(tile)) && AIRail.IsRailTile(tile) &&
+				(AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NE_SW) != 0)) {
+			length += 2;
+		}
 	}
 	return length;
 }
@@ -68,6 +78,10 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
 		if (start_tile > tile) {
 			AIRail.RemoveRailStationTileRect(tile + AIMap.GetTileIndex(0, platform_length), tile + AIMap.GetTileIndex(1, platform_length + 1));
+			local tile2 = tile + AIMap.GetTileIndex(0, platform_length)
+			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
+				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(0, platform_length), AIRail.RAILTRACK_NW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(1, platform_length), AIRail.RAILTRACK_NW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(0, 1 + platform_length), AIRail.RAILTRACK_NW_SE)) return false;
@@ -83,6 +97,10 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 		} else {
 			AIRail.RemoveRailStationTileRect(tile, tile + AIMap.GetTileIndex(1, 1));
 			tile = tile + AIMap.GetTileIndex(0, 2);
+			local tile2 = tile + AIMap.GetTileIndex(0, -1)
+			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
+				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(0, -1), AIRail.RAILTRACK_NW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(1, -1), AIRail.RAILTRACK_NW_SE)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(0, -2), AIRail.RAILTRACK_NW_SE)) return false;
@@ -99,6 +117,10 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 	} else {
 		if (start_tile > tile) {
 			AIRail.RemoveRailStationTileRect(tile + AIMap.GetTileIndex(platform_length, 0), tile + AIMap.GetTileIndex(platform_length + 1, 1));
+			local tile2 = tile + AIMap.GetTileIndex(platform_length, 0)
+			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
+				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(platform_length, 0), AIRail.RAILTRACK_NE_SW)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(platform_length, 1), AIRail.RAILTRACK_NE_SW)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(1 + platform_length, 0), AIRail.RAILTRACK_NE_SW)) return false;
@@ -114,6 +136,10 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 		} else {
 			AIRail.RemoveRailStationTileRect(tile, tile + AIMap.GetTileIndex(1, 1));
 			tile = tile + AIMap.GetTileIndex(2, 0);
+			local tile2 = tile + AIMap.GetTileIndex(-1, 0)
+			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
+				if (!AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)))) return false;
+			}
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 0), AIRail.RAILTRACK_NE_SW)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-1, 1), AIRail.RAILTRACK_NE_SW)) return false;
 			if (!AIRail.BuildRailTrack(tile + AIMap.GetTileIndex(-2, 0), AIRail.RAILTRACK_NE_SW)) return false;
@@ -142,10 +168,12 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	local track_near_station_a_already_build = false;
 	local track_near_station_b_already_build = false;
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
-		if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, -1)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(0, -1)) & AIRail.RAILTRACK_NW_SW) != 0) {
+		local tile2 = tile + AIMap.GetTileIndex(0, -1);
+		local tile3 = tile + AIMap.GetTileIndex(0, platform_length);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_a_already_build = true;
 			sources.push([tile + AIMap.GetTileIndex(0, -3), tile + AIMap.GetTileIndex(0, -2)]);
-		} else if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, platform_length)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(0, platform_length)) & AIRail.RAILTRACK_NW_SW) != 0) {
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_a_already_build = true;
 			sources.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
 		} else {
@@ -155,16 +183,16 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(0, platform_length + 2), 2, 1)) {
 				sources.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
 			}
-			ignored.AddTile(tile + AIMap.GetTileIndex(1, -1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(1, -2));
-			ignored.AddTile(tile + AIMap.GetTileIndex(1,  platform_length + 2));
-			ignored.AddTile(tile + AIMap.GetTileIndex(1,  platform_length + 3));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, -2), tile + AIMap.GetTileIndex(2, -1));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(2, platform_length + 3));
 		}
 	} else {
-		if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(-1, 0)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(-1, 0)) & AIRail.RAILTRACK_NE_SW) != 0) {
+		local tile2 = tile + AIMap.GetTileIndex(-1, 0);
+		local tile3 = tile + AIMap.GetTileIndex(platform_length, 0);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_a_already_build = true;
 			sources.push([tile + AIMap.GetTileIndex(-3, 0), tile + AIMap.GetTileIndex(-2, 0)]);
-		} else if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(platform_length, 0)) && !AIRail.IsRailStationTile(tile + AIMap.GetTileIndex(platform_length, 0)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(platform_length, 0)) & AIRail.RAILTRACK_NE_SW) != 0) {
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_a_already_build = true;
 			sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
 		} else {
@@ -174,18 +202,18 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 0), 1, 2)) {
 				sources.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
 			}
-			ignored.AddTile(tile + AIMap.GetTileIndex(-1, 1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(-2, 1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(platform_length + 2, 1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(platform_length + 3, 1));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(-2, 1), tile + AIMap.GetTileIndex(-1, 2));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 3, 2));
 		}
 	}
 	tile = AIStation.GetLocation(station_b);
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
-		if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, -1)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(0, -1)) & AIRail.RAILTRACK_NW_SE) != 0) {
+		local tile2 = tile + AIMap.GetTileIndex(0, -1);
+		local tile3 = tile + AIMap.GetTileIndex(0, platform_length);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_b_already_build = true;
 			goals.push([tile + AIMap.GetTileIndex(0, -3), tile + AIMap.GetTileIndex(0, -2)]);
-		} else if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(0, platform_length)) && !AIRail.IsRailStationTile(tile + AIMap.GetTileIndex(0, platform_length)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(0, platform_length)) & AIRail.RAILTRACK_NW_SE) != 0) {
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NW_SW) != 0) {
 			track_near_station_b_already_build = true;
 			goals.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
 		} else {
@@ -195,16 +223,16 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(0, platform_length + 2), 2, 1)) {
 				goals.push([tile + AIMap.GetTileIndex(0, platform_length + 2), tile + AIMap.GetTileIndex(0, platform_length + 1)]);
 			}
-			ignored.AddTile(tile + AIMap.GetTileIndex(1, -1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(1, -2));
-			ignored.AddTile(tile + AIMap.GetTileIndex(1,  platform_length + 2));
-			ignored.AddTile(tile + AIMap.GetTileIndex(1,  platform_length + 3));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, -2), tile + AIMap.GetTileIndex(2, -1));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(1, platform_length + 2), tile + AIMap.GetTileIndex(2, platform_length + 3));
 		}
 	} else {
-		if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(-1, 0)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(-1, 0)) & AIRail.RAILTRACK_NE_SW) != 0) {
+		local tile2 = tile + AIMap.GetTileIndex(-1, 0);
+		local tile3 = tile + AIMap.GetTileIndex(platform_length, 0);
+		if (AIRail.IsRailTile(tile2) && AICompany.IsMine(AITile.GetOwner(tile2)) && !AIRail.IsRailStationTile(tile2) && (AIRail.GetRailTracks(tile2) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_b_already_build = true;
 			goals.push([tile + AIMap.GetTileIndex(-3, 0), tile + AIMap.GetTileIndex(-2, 0)]);
-		} else if (AIRail.IsRailTile(tile + AIMap.GetTileIndex(platform_length, 0)) && !AIRail.IsRailStationTile(tile + AIMap.GetTileIndex(platform_length, 0)) && (AIRail.GetRailTracks(tile + AIMap.GetTileIndex(platform_length, 0)) & AIRail.RAILTRACK_NE_SW) != 0) {
+		} else if (AIRail.IsRailTile(tile3) && AICompany.IsMine(AITile.GetOwner(tile3)) && !AIRail.IsRailStationTile(tile3) && (AIRail.GetRailTracks(tile3) & AIRail.RAILTRACK_NE_SW) != 0) {
 			track_near_station_b_already_build = true;
 			goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
 		} else {
@@ -214,10 +242,8 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 			if (AITile.IsBuildableRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 0), 1, 2)) {
 				goals.push([tile + AIMap.GetTileIndex(platform_length + 2, 0), tile + AIMap.GetTileIndex(platform_length + 1, 0)]);
 			}
-			ignored.AddTile(tile + AIMap.GetTileIndex(-1, 1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(-2, 1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(platform_length + 2, 1));
-			ignored.AddTile(tile + AIMap.GetTileIndex(platform_length + 3, 1));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(-2, 1), tile + AIMap.GetTileIndex(-1, 2));
+			ignored.AddRectangle(tile + AIMap.GetTileIndex(platform_length + 2, 1), tile + AIMap.GetTileIndex(platform_length + 3, 2));
 		}
 	}
 	if (sources.len() == 0 || goals.len() == 0) return -1;
@@ -318,14 +344,14 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 		if (path == null || path == false) return -8;
 	}
 	if (!building_ok) return -5;
-	local depot = RailRouteBuilder.BuildDepot(path);
-	if (depot == null) depot = RailRouteBuilder.BuildDepot(first_path);
-	if (depot == null) {
+	local depot1 = RailRouteBuilder.BuildDepot(path);
+	local depot2 = RailRouteBuilder.BuildDepot(first_path);
+	if (depot1 == null && depot2 == null) {
 		AILog.Error("COuldn't find a place for a rail depot!");
 		return -6;
 	}
 	RailRouteBuilder.SignalPath(path);
-	return [depot];
+	return [depot1, depot2];
 }
 
 function RailRouteBuilder::TestBuildPath(path)
@@ -346,7 +372,7 @@ function RailRouteBuilder::BuildPath(path)
 			if (AIMap.DistanceManhattan(prev, path.GetTile()) > 1) {
 				if (AITunnel.GetOtherTunnelEnd(prev) == path.GetTile()) {
 					if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_RAIL, prev)) {
-						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT) {
+						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
 							AILog.Error("1 " + AIError.GetLastErrorString());
 							return false;
 						}
@@ -356,7 +382,7 @@ function RailRouteBuilder::BuildPath(path)
 					bridge_list.Valuate(AIBridge.GetMaxSpeed);
 					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 					if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
-						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT) {
+						if (AIError.GetLastError() != AIError.ERR_ALREADY_BUILT || !AICompany.IsMine(AITile.GetOwner(prev))) {
 							AILog.Error("2 " + AIError.GetLastErrorString());
 							return false;
 						}
@@ -366,6 +392,7 @@ function RailRouteBuilder::BuildPath(path)
 				prev = path.GetTile();
 				path = path.GetParent();
 			} else {
+				if (AIRail.IsRailTile(prev) && !AICompany.IsMine(AITile.GetOwner(prev))) return false;
 				if (!AIRail.AreTilesConnected(prevprev, prev, path.GetTile())) {
 					if (!AIRail.BuildRail(prevprev, prev, path.GetTile())) {
 						local num_tries = 3;
@@ -426,9 +453,11 @@ function RailRouteBuilder::SignalPath(path)
 		prev = path.GetTile();
 		path = path.GetParent();
 	}
+	/* Although this provides better signalling (trains cannot get stuck half in the station),
+	 * it is also the cause of using the same track of rails both ways, possible causing deadlocks.
 	if (tiles_skipped < 50 && lastbuild_tile != null) {
 		AIRail.RemoveSignal(lastbuild_tile, lastbuild_front_tile);
-	}
+	}*/
 }
 
 function RailRouteBuilder::BuildDepot(path)

@@ -67,14 +67,14 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 	return RouteBuilder.BuildRoadRoute(RPF(), sources, goals, 2, 10);
 }
 
-function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier, max_length_offset)
+function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier, max_length_offset, ignored_tiles = [])
 {
 	local num_retries = 3;
 	if (sources.len() == 0 || goals.len() == 0) return -1;
 
 	while (num_retries > 0) {
 		num_retries--;
-		pf.InitializePath(sources, goals, max_length_multiplier, max_length_offset);
+		pf.InitializePath(sources, goals, max_length_multiplier, max_length_offset, ignored_tiles);
 		local path = pf.FindPath(-1);
 		if (path == null) {
 			AILog.Warning("RouteBuilder::BuildRoadRoute(): No path could be found");
@@ -106,11 +106,11 @@ function RouteBuilder::BuildPath(path)
 		}
 		local last_node = path.GetTile();
 		local force_normal_road = false;
-		while (par.GetParent() != null && par.GetTile() - last_node == par.GetParent().GetTile() - par.GetTile()) {
+		/*while (par.GetParent() != null && par.GetTile() - last_node == par.GetParent().GetTile() - par.GetTile()) {
 			last_node = par.GetTile();
 			par = par.GetParent();
 			force_normal_road = true;
-		}
+		}*/
 		if (force_normal_road || AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) == 1 ) {
 			if (!AIRoad.BuildRoad(path.GetTile(), par.GetTile())) {
 				/* An error occured while building a piece of road, check what error it is. */
@@ -153,9 +153,9 @@ function RouteBuilder::_HandleRoadBuildError(from, to)
 			return true;
 
 		case AIError.ERR_VEHICLE_IN_THE_WAY:
-			local num_retries = 10;
+			local num_retries = 40;
 			while (num_retries-- > 0) {
-				AIController.Sleep(20);
+				AIController.Sleep(10);
 				if (AIRoad.BuildRoad(from, to)) return true;
 				if (AIError.GetLastError() == AIError.ERR_ALREADY_BUILT) return true;
 				if (AIError.GetLastError() != AIError.ERR_VEHICLE_IN_THE_WAY) return false;

@@ -36,12 +36,12 @@ class TrainLine
 	 * @param depot_tile A TileIndex of the depot tile.
 	 * @param cargo The CargoID we are transporting.
 	 */
-	constructor(ind_from, station_from, ind_to, station_to, depot_tile, cargo, loaded, platform_length) {
+	constructor(ind_from, station_from, ind_to, station_to, depot_tiles, cargo, loaded, platform_length) {
 		this._ind_from = ind_from;
 		this._station_from = station_from;
 		this._ind_to = ind_to;
 		this._station_to = station_to;
-		this._depot_tile = depot_tile;
+		this._depot_tiles = depot_tiles;
 		this._cargo = cargo;
 		this._platform_length = platform_length;
 		this._valid = true;
@@ -96,7 +96,7 @@ class TrainLine
 	_station_from = null; ///< The StationManager managing the first station.
 	_station_to = null;   ///< The StationManager managing the second station.
 	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
-	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
+	_depot_tiles = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
 	_cargo = null;        ///< The CargoID of the cargo we'll transport.
 	_engine_id = null;    ///< The EngineID of the vehicles on this route.
 	_wagon_engine_id = null;
@@ -139,7 +139,8 @@ function TrainLine::BuildVehicles(num)
 	local max_veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
 
 	for (local i = 0; i < num; i++) {
-		local v = AIVehicle.BuildVehicle(this._depot_tile, this._engine_id);
+		local depot = this._depot_tiles[0] == null ? this._depot_tiles[1] : this._depot_tiles[0];
+		local v = AIVehicle.BuildVehicle(depot, this._engine_id);
 		if (!AIVehicle.IsValidVehicle(v)) {
 			if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 			AILog.Warning("Error building train engine: " + AIError.GetLastErrorString());
@@ -147,18 +148,16 @@ function TrainLine::BuildVehicles(num)
 		}
 		local last_length = AIVehicle.GetLength(v);
 		while (last_length <= 16 * this._platform_length) {
-			local wagon_id = AIVehicle.BuildVehicle(this._depot_tile, this._wagon_engine_id);
+			local wagon_id = AIVehicle.BuildVehicle(depot, this._wagon_engine_id);
 			/* Check if the wagon was already added to the engine. */
 			if (AIVehicle.GetLength(v) == last_length) {
 				if (!AIVehicle.IsValidVehicle(wagon_id)) {
-					quit();
 					AIVehicle.SellVehicle(v);
 					if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 					AILog.Warning("Error building train wagon: " + AIError.GetLastErrorString());
 					return true;
 				}
 				AIVehicle.MoveWagon(wagon_id, 0, false, v, 0);
-				AILog.Warning(AIError.GetLastErrorString());
 			}
 			last_length = AIVehicle.GetLength(v);
 		}
@@ -170,9 +169,14 @@ function TrainLine::BuildVehicles(num)
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD);
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD);
-			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			if (this._depot_tiles[0] == null) {
+				AIOrder.AppendOrder(v, this._depot_tiles[1], AIOrder.AIOF_SERVICE_IF_NEEDED);
+			}
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			if (this._depot_tiles[0] != null) {
+				AIOrder.AppendOrder(v, this._depot_tiles[0], AIOrder.AIOF_SERVICE_IF_NEEDED);
+			}
 		}
 		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
