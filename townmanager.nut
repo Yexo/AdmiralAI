@@ -1,0 +1,63 @@
+class TownManager
+{
+	_town_id = null;
+	_stations = null;
+	_depot_tile = null;
+
+	constructor(town_id) {
+		this._town_id = town_id;
+		this._stations = [];
+		this._depot_tile = null;
+	}
+}
+
+function TownManager::GetDepot(station_manager)
+{
+	if (this._depot_tile == null) {
+		local stationtiles = AITileList_StationType(station_manager.GetStationID(), AIStation.STATION_BUS_STOP);
+		stationtiles.Valuate(AIRoad.GetRoadStationFrontTile);
+		this._depot_tile =  AdmiralAI.BuildDepot(stationtiles.GetValue(stationtiles.Begin()));
+	}
+	return this._depot_tile;
+}
+
+function TownManager::CanGetStation()
+{
+	return this._stations.len() == 0 || this._stations[0].GetNumBusses() == 0;
+}
+
+function TownManager::GetStation(around_tile)
+{
+	if (this._stations.len() > 0) return this._stations[0];
+	/* We need to build a new station. */
+	local list = AITileList();
+	list.AddRectangle(around_tile + AIMap.GetTileIndex(-3, -3), around_tile + AIMap.GetTileIndex(3, 3));
+	list.Valuate(AIRoad.GetNeighbourRoadCount);
+	list.KeepAboveValue(0);
+	list.Valuate(AIRoad.IsRoadTile);
+	list.KeepValue(0);
+	list.Valuate(AIMap.DistanceManhattan, around_tile);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	foreach (t, dis in list) {
+		if (AICompany.IsMine(AITile.GetOwner(t))) continue;
+		if (!AITile.DemolishTile(t)) continue;
+		local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),
+		                 AIMap.GetTileIndex(1,0), AIMap.GetTileIndex(-1,0)];
+		foreach (offset in offsets) {
+			if (AIRoad.IsRoadTile(t + offset)) {
+				{
+					local testmode = AITestMode();
+					if (!AIRoad.BuildRoad(t, t + offset)) continue;
+					if (!AIRoad.BuildRoadStation(t, t + offset, false, false)) continue;
+				}
+				AIRoad.BuildRoad(t, t + offset);
+				AIRoad.BuildRoadStation(t, t + offset, false, false);
+				local manager = StationManager(AIStation.GetStationID(t));
+				this._stations.push(manager);
+				return manager;
+			}
+		}
+	}
+	throw("no staton build");
+	return null;
+}
