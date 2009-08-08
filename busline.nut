@@ -23,7 +23,14 @@ class BusLine
 		this._vehicle_list = AIList();
 		this._depot_tile = depot_tile;
 		this._cargo = cargo;
-		this.BuildVehicles(6);
+		local station_id_from = station_from.GetStationID();
+		local station_id_to = station_to.GetStationID();
+		local loc_from = AIStation.GetLocation(station_id_from);
+		local loc_to = AIStation.GetLocation(station_id_to);
+		local distance = AIMap.DistanceManhattan(loc_from, loc_to);
+		local acceptance = AITile.GetCargoAcceptance(loc_from, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
+		acceptance += AITile.GetCargoAcceptance(loc_to, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
+		this.BuildVehicles(max(3, min(20, 2 + ((acceptance / 35) * (distance / 50)).tointeger())));
 	}
 
 	/**
@@ -87,6 +94,7 @@ function BusLine::BuildVehicles(num)
 			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_NONE);
 			AIOrder.ChangeOrder(v, 2, AIOrder.AIOF_SERVICE_IF_NEEDED);
 		}
+		if (i % 2) AIVehicle.SkipToVehicleOrder(v, 1);
 		this._vehicle_list.AddItem(v, 0);
 		this._station_from.AddBusses(1);
 		this._station_to.AddBusses(1);
@@ -98,8 +106,15 @@ function BusLine::BuildVehicles(num)
 function BusLine::CheckVehicles()
 {
 	if (this._vehicle_list == null) return;
+	local build_new = true;
+	local orig_count = this._vehicle_list.Count();
 	this._vehicle_list.Valuate(AIVehicle.IsValidVehicle);
 	this._vehicle_list.KeepValue(1);
+	local valid_count = this._vehicle_list.Count();
+	if (valid_count < orig_count) {
+		this._station_from.RemoveTrucks(orig_count - valid_count);
+		this._station_to.RemoveTrucks(orig_count - valid_count);
+	}
 	local list = AIList();
 	list.AddList(this._vehicle_list);
 	list.Valuate(AIVehicle.GetAge);
@@ -107,29 +122,67 @@ function BusLine::CheckVehicles()
 	list.Valuate(AIVehicle.GetProfitLastYear);
 	list.KeepBelowValue(0);
 
-	for (local v = list.Begin(); list.HasNext(); list.Next()) {
+	foreach (v, profit in list) {
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::vehicles_to_sell.AddItem(v, 0);
+		this._station_from.RemoveBusses(1);
+		this._station_to.RemoveBusses(1);
+		build_new = false;
 	}
 
-	for (local v = this._vehicle_list.Begin(); this._vehicle_list.HasNext(); this._vehicle_list.Next()) {
-		if (AIVehicle.GetState(v) == AIVehicle.VS_STOPPED) AIVehicle.StartStopVehicle(v);
+	this._vehicle_list.Valuate(AIVehicle.GetState);
+	foreach (vehicle, state in this._vehicle_list) {
+		switch (state) {
+			case AIVehicle.VS_RUNNING:
+				/*local list = AIList();
+				list.AddList(this._vehicle_list);
+				list.Valuate(BusLineManager._ValuatorReturnItem);
+				list.KeepAboveValue(vehicle);*/
+				/* Same OrderPosition means same order, since the orders are shared. */
+				/*list.Valuate(AIOrder.ResolveOrderPosition, AIOrder.CURRENT_ORDER);
+				list.KeepValue(AIOrder.ResolveOrderPosition(vehicle, AIOrder.CURRENT_ORDER));
+				local route = RouteFinder.FindRouteBetweenRects(AIVehicle.GetLocation(vehicle), AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER), 0);
+				if (route == null) continue;
+
+				list.Valuate(BusLine._VehicleRouteDistanceToTile, AIVehicle.GetLocation(vehicle));
+				list.KeepBelowValue(5);
+				if (list.Count() > 0) {
+					AIVehicle.StartStopVehicle(vehicle);
+					build_new = false;
+				}*/
+				break;
+
+			case AIVehicle.VS_STOPPED:
+				AIVehicle.StartStopVehicle(vehicle);
+				build_new = false;
+				break;
+
+			case AIVehicle.VS_IN_DEPOT:
+			case AIVehicle.VS_AT_STATION:
+			case AIVehicle.VS_BROKEN:
+			case AIVehicle.VS_CRASHED:
+				break;
+		}
 	}
 
-	if (list.Count() == 0) {
+	if (build_new) {
 		local cargo_waiting_a = AIStation.GetCargoWaiting(this._station_from.GetStationID(), this._cargo);
 		local cargo_waiting_b = AIStation.GetCargoWaiting(this._station_to.GetStationID(), this._cargo);
 		local num_new =  0;
-		if (max(cargo_waiting_a, cargo_waiting_b) > 150) {
-			list = AIList();
-			list.AddList(this._vehicle_list);
-			list.Valuate(AIVehicle.GetAge);
-			list.KeepBelowValue(250);
-			local num_young_vehicles = list.Count();
+		list = AIList();
+		list.AddList(this._vehicle_list);
+		list.Valuate(AIVehicle.GetAge);
+		list.KeepBelowValue(250);
+		local num_young_vehicles = list.Count();
+		if (max(cargo_waiting_a, cargo_waiting_b) > 100) {
 			num_new = max(cargo_waiting_a, cargo_waiting_b) / 60 - max(0, num_young_vehicles);
 			num_new = min(num_new, 8); // Don't build more than 8 new vehicles a time.
 		}
+		local rating = min(AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo),
+		                   AIStation.GetCargoRating(this._station_to.GetStationID(), this._cargo));
+		if (rating < 60 && num_young_vehicles == 0 && num_new == 0) num_new = 1;
+		if (rating < 45 && num_young_vehicles + num_new <= 1) num_new++;
 		if (num_new > 0) this.BuildVehicles(num_new);
 	}
 }
@@ -149,3 +202,7 @@ function BusLine::_FindEngineID()
 	this._engine_id = list.Begin();
 }
 
+function BusLine::_VehicleRouteDistanceToTile(vehicle_id, tile)
+{
+	return AIMap.DistanceManhattan(tile, AIVehicle.GetLocation(vehicle_id));
+}

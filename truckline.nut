@@ -27,8 +27,33 @@ class TruckLine
 		this._cargo = cargo;
 		this._engine_id = null;
 		this._valid = true;
-		this.BuildVehicles(4);
+		this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
+		AIGroup.SetName(this._group_id, AICargo.GetCargoLabel(cargo) + ": " + AIStation.GetName(station_from.GetStationID()) + " - " + AIStation.GetName(station_to.GetStationID()));
+		local station_id_from = station_from.GetStationID();
+		local station_id_to = station_to.GetStationID();
+		local loc_from = AIStation.GetLocation(station_id_from);
+		local loc_to = AIStation.GetLocation(station_id_to);
+		local distance = AIMap.DistanceManhattan(loc_from, loc_to);
+		this.BuildVehicles(3);
 	}
+
+	/**
+	 * Get the IndustryID of the station this line was transporting cargo from.
+	 * @return The IndustryID.
+	 */
+	function GetIndustryFrom();
+
+	/**
+	 * Get the IndustryID of the station this line was transporting cargo to.
+	 * @return The IndustryID.
+	 */
+	function GetIndustryTo();
+
+	/**
+	 * Close down this route. This function tries to sell all vehicles and closes
+	 *  down both stations if necesary (determined by StationManager).
+	 */
+	function CloseRoute();
 
 	/**
 	 * Build some new vehicles for this route. First call _FindEngineID()
@@ -71,6 +96,7 @@ class TruckLine
 	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
 	_cargo = null;        ///< The CargoID we are transporting.
 	_engine_id = null;    ///< The EngineID of the vehicles on this route.
+	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
 	_valid = null;
 };
 
@@ -125,6 +151,7 @@ function TruckLine::BuildVehicles(num)
 		this._vehicle_list.AddItem(v, 0);
 		this._station_from.AddTrucks(1);
 		this._station_to.AddTrucks(1);
+		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
 	}
 	return true;
@@ -159,7 +186,7 @@ function TruckLine::CheckVehicles()
 	list.Valuate(AIVehicle.GetProfitLastYear);
 	list.KeepBelowValue(0);
 
-	for (local v = list.Begin(); list.HasNext(); list.Next()) {
+	foreach (v, profit in list) {
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::vehicles_to_sell.AddItem(v, 0);
@@ -175,15 +202,16 @@ function TruckLine::CheckVehicles()
 	if (list.Count() == 0) {
 		local cargo_waiting = AIStation.GetCargoWaiting(this._station_from.GetStationID(), this._cargo);
 		local num_new =  0;
-		if (cargo_waiting > 150) {
-			list = AIList();
-			list.AddList(this._vehicle_list);
-			list.Valuate(AIVehicle.GetAge);
-			list.KeepBelowValue(250);
-			local num_young_vehicles = list.Count();
-			num_new = cargo_waiting / 60 - max(0, num_young_vehicles);
+		list = AIList();
+		list.AddList(this._vehicle_list);
+		list.Valuate(AIVehicle.GetAge);
+		list.KeepBelowValue(250);
+		local num_young_vehicles = list.Count();
+		if (cargo_waiting > 100) {
+			num_new = cargo_waiting / 70 - max(0, num_young_vehicles);
 			num_new = min(num_new, 8); // Don't build more than 8 new vehicles a time.
 		}
+		if (AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo) < 65 && num_young_vehicles == 0 && num_new == 0) num_new = 1;
 		if (num_new > 0) return !this.BuildVehicles(num_new);
 	}
 	/* We didn't build any new vehicles, so we don't need more money. */
@@ -202,5 +230,9 @@ function TruckLine::_FindEngineID()
 	list.KeepValue(1);
 	list.Valuate(TruckLine._SortEngineList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	local new_engine_id = list.Begin();
+	if (this._engine_id != null && this._engine_id != new_engine_id) {
+		AIGroup.SetAutoReplace(this._group_id, this._engine_id, new_engine_id);
+	}
 	this._engine_id = list.Begin();
 }

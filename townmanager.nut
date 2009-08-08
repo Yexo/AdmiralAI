@@ -23,6 +23,7 @@ class TownManager
 		this._town_id = town_id;
 		this._stations = [];
 		this._depot_tile = null;
+		this._station_failed_date = 0;
 	}
 
 	/**
@@ -48,9 +49,10 @@ class TownManager
 
 /* private: */
 
-	_town_id = null;    ///< The TownID this TownManager is managing.
-	_stations = null;   ///< An array with all StationManagers within this town.
-	_depot_tile = null; ///< The TileIndex of a road depot tile inside this town.
+	_town_id = null;             ///< The TownID this TownManager is managing.
+	_stations = null;            ///< An array with all StationManagers within this town.
+	_depot_tile = null;          ///< The TileIndex of a road depot tile inside this town.
+	_station_failed_date = null; ///< Don't try to build a new station within 60 days of failing to build one.
 };
 
 function TownManager::GetDepot(station_manager)
@@ -65,19 +67,45 @@ function TownManager::GetDepot(station_manager)
 
 function TownManager::CanGetStation()
 {
-	return this._stations.len() == 0 || this._stations[0].GetNumBusses() == 0;
+	foreach (station in this._stations) {
+		if (station.GetNumBusses() == 0) return true;
+	}
+	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return false;
+	if (AIDate.GetCurrentDate() - this._station_failed_date < 60) return false;
+	if ((AITown.GetPopulation(this._town_id) / 800).tointeger() + 1 > this._stations.len()) return true;
+	return false;
 }
 
-function TownManager::GetStation(around_tile)
+function TownManager::GetStation(around_tile, pax_cargo_id)
 {
-	if (this._stations.len() > 0) return this._stations[0];
+	foreach (station in this._stations) {
+		if (station.GetNumBusses() == 0) return station;
+	}
 	/* We need to build a new station. */
+	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
+	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) {
+		AILog.Warning("Town rating: " + rating);
+		AILog.Warning("Town rating is bad, not going to try building a station in " + AITown.GetName(this._town_id));
+		return null;
+	}
+
 	local list = AITileList();
-	AdmiralAI.AddSquare(list, around_tile, 3);
+	AdmiralAI.AddSquare(list, around_tile, 10);
 	list.Valuate(AIRoad.GetNeighbourRoadCount);
 	list.KeepAboveValue(0);
 	list.Valuate(AIRoad.IsRoadTile);
 	list.KeepValue(0);
+	list.Valuate(AdmiralAI.GetRealHeight);
+	list.KeepAboveValue(0);
+	list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
+	foreach (station in this._stations) {
+		local station_id = station.GetStationID();
+		list.Valuate(AIMap.DistanceSquare, AIStation.GetLocation(station_id));
+		list.KeepAboveValue(40);
+	}
+	list.Valuate(AITile.GetCargoAcceptance, pax_cargo_id, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
+	list.KeepAboveValue(34);
 	list.Valuate(AIMap.DistanceManhattan, around_tile);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 	foreach (t, dis in list) {
@@ -100,6 +128,7 @@ function TownManager::GetStation(around_tile)
 			}
 		}
 	}
+	this._station_failed_date = AIDate.GetCurrentDate();
 	AILog.Error("no staton build in " + AITown.GetName(this._town_id));
 	return null;
 }
