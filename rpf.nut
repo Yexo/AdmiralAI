@@ -169,6 +169,7 @@ function RPF::_Cost(path, new_tile, new_direction, self)
 	if (AdmiralAI.GetRealHeight(new_tile) == 0) return self._max_cost;
 	/* path == null means this is the first node of a path, so the cost is 0. */
 	if (path == null) return 0;
+	if (AITile.HasTransportType(new_tile, AITile.TRANSPORT_RAIL)) return self._max_cost;
 
 	local prev_tile = path.GetTile();
 
@@ -292,14 +293,8 @@ function RPF::_CheckDirection(tile, existing_direction, new_direction, self)
 
 function RPF::_GetDirection(from, to, is_bridge)
 {
-	if (!is_bridge && AdmiralAI.GetRealHeight(to) >= AdmiralAI.GetRealHeight(from)) {
-		if (abs(from - to) == 1) return 3;
-		if (abs(from - to) == AIMap.GetMapSizeX()) return 12;
-	}
-	if (from - to == 1) return 1;
-	if (from - to == -1) return 2;
-	if (from - to == AIMap.GetMapSizeX()) return 4;
-	if (from - to == -AIMap.GetMapSizeX()) return 8;
+	if (abs(from - to) == 1) return 3;
+	if (abs(from - to) == AIMap.GetMapSizeX()) return 12;
 }
 
 /**
@@ -311,7 +306,7 @@ function RPF::_GetDirection(from, to, is_bridge)
 function RPF::_GetTunnelsBridges(last_node, cur_node, bridge_dir)
 {
 	local slope = AITile.GetSlope(cur_node);
-	if (slope == AITile.SLOPE_FLAT) return [];
+	if (slope == AITile.SLOPE_FLAT && !AITile.HasTransportType(cur_node + (cur_node - last_node), AITile.TRANSPORT_RAIL) && !AITile.HasTransportType(cur_node + (cur_node - last_node), AITile.TRANSPORT_RAIL)) return [];
 	local tiles = [];
 
 	for (local i = 2; i < this._max_bridge_length; i++) {

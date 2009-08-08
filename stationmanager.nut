@@ -14,7 +14,8 @@ class StationManager
 	constructor(station_id) {
 		this._station_id = station_id;
 		this._truck_points = 0;
-		this._num_busses = 0;
+		this._bus_points = 0;
+		this._is_drop_station = false;
 	}
 
 	/**
@@ -49,9 +50,9 @@ class StationManager
 	function RemoveTrucks(num, distance, speed);
 
 	/**
-	 * Get the amount of busses with this station in their order list.
+	 * Get if their are any busses with this station in their order list.
 	 */
-	function GetNumBusses();
+	function HasBusses();
 
 	/**
 	 * Is it possible to add some extra busses to this station?
@@ -59,19 +60,19 @@ class StationManager
 	 * @return The maximum number of busses that can be added.
 	 * @note The return value can be higher then num.
 	 */
-	function CanAddBusses(num);
+	function CanAddBusses(num, distance, speed);
 
 	/**
 	 * Notify the StationManager that some busses were added to this station.
 	 * @param num The amount of busses that were added.
 	 */
-	function AddBusses(num);
+	function AddBusses(num, distance, speed);
 
 	/**
 	 * Notify the StationManager that some busses were removed from this station.
 	 * @param num The amount of busses that were removed.
 	 */
-	function RemoveBusses(num);
+	function RemoveBusses(num, distance, speed);
 
 /* private: */
 
@@ -86,9 +87,14 @@ class StationManager
 
 	_station_id = null;      ///< The StationID of the station this StationManager manages.
 	_truck_points = null;    ///< The total truck points of trucks that have this station in their order list.
-	_num_busses = null;      ///< The total number of busses that have this station in their order list.
-
+	_bus_points = null;      ///< The total bus points of busses that have this station in their order list.
+	_is_drop_station = null; ///< True if this stations is used for dropping cargo. (passengers don't count)
 };
+
+function StationManager::SetCargoDrop(is_drop_station)
+{
+	this._is_drop_station = is_drop_station;
+}
 
 function StationManager::GetPoints(distance, speed)
 {
@@ -127,16 +133,18 @@ function StationManager::GetStationID()
 
 function StationManager::CanAddTrucks(num, distance, speed)
 {
+	local station_max_points = 100000;
+	if (this._is_drop_station) station_max_points = 90000;
 	local station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
 	local num_truck_stops = station_tilelist.Count();
 	local points_per_truck = StationManager.GetPoints(distance, speed);
-	local max_points = 100000 * num_truck_stops;
+	local max_points = station_max_points * num_truck_stops;
 	if (max_points - this._truck_points >= points_per_truck * num) return num;
 	local points_too_many = points_per_truck * num + this._truck_points - max_points;
-	this._TryBuildExtraTruckStops(((points_too_many + 99999) / 100000).tointeger(), false);
+	this._TryBuildExtraTruckStops(((points_too_many + station_max_points - 1) / station_max_points).tointeger(), false);
 	station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
 	num_truck_stops = station_tilelist.Count();
-	max_points = 100000 * num_truck_stops;
+	max_points = station_max_points * num_truck_stops;
 	return ((max_points - this._truck_points) / points_per_truck).tointeger();
 }
 
@@ -152,24 +160,27 @@ function StationManager::RemoveTrucks(num, distance, speed)
 	this._truck_points -= num * points_per_truck;
 }
 
-function StationManager::GetNumBusses()
+function StationManager::HasBusses()
 {
-	return this._num_busses;
+	return this._bus_points != 0;
 }
 
-function StationManager::CanAddBusses(num)
+function StationManager::CanAddBusses(num, distance, speed)
 {
-	return 12 - this._num_busses;
+	local points_per_bus = StationManager.GetPoints(distance, speed);
+	return ((80000 - this._bus_points) / points_per_bus).tointeger();
 }
 
-function StationManager::AddBusses(num)
+function StationManager::AddBusses(num, distance, speed)
 {
-	this._num_busses += num;
+	local points_per_bus = StationManager.GetPoints(distance, speed);
+	this._bus_points += num * points_per_bus;
 }
 
-function StationManager::RemoveBusses(num)
+function StationManager::RemoveBusses(num, distance, speed)
 {
-	this._num_busses = num;
+	local points_per_bus = StationManager.GetPoints(distance, speed);
+	this._bus_points -= num * points_per_bus;
 }
 
 function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
@@ -215,7 +226,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 							AITile.LowerTile(tile, AITile.GetSlope(tile));
 						}
 					}
-					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false)) continue;
+					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 					front_tiles.Valuate(AIMap.DistanceManhattan, tile + offset);
 					local min_distance = front_tiles.GetValue(front_tiles.Begin());
 					if (min_distance < best_min_distance) {
@@ -228,7 +239,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 		}
 		if (best_min_distance == 999) break;
 		if (!AIRoad.BuildRoad(best_tile, best_front)) return;
-		if (!AIRoad.BuildRoadStation(best_tile, best_front, true, false)) return;
+		if (!AIRoad.BuildRoadStation(best_tile, best_front, true, false, true)) return;
 		front_tiles.AddTile(best_front);
 		foreach (offset in diagoffsets) {
 			if (AIRoad.IsRoadTile(best_tile + offset) || (AITile.GetOwner(best_tile + offset) >= AICompany.FIRST_COMPANY &&

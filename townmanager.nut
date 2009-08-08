@@ -60,7 +60,7 @@ function TownManager::GetDepot(station_manager)
 function TownManager::CanGetStation()
 {
 	foreach (station in this._stations) {
-		if (station.GetNumBusses() == 0) return true;
+		if (!station.HasBusses()) return true;
 	}
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return false;
@@ -73,7 +73,7 @@ function TownManager::GetStation(pax_cargo_id)
 {
 	local town_center = AITown.GetLocation(this._town_id);
 	foreach (station in this._stations) {
-		if (station.GetNumBusses() == 0) return station;
+		if (!station.HasBusses()) return station;
 	}
 	/* We need to build a new station. */
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
@@ -119,10 +119,10 @@ function TownManager::GetStation(pax_cargo_id)
 			{
 				local testmode = AITestMode();
 				if (!AIRoad.BuildRoad(t, t + offset)) continue;
-				if (!AIRoad.BuildRoadStation(t, t + offset, false, false)) continue;
+				if (!AIRoad.BuildRoadStation(t, t + offset, false, false, false)) continue;
 			}
 			if (!AIRoad.BuildRoad(t, t + offset)) continue;
-			if (!AIRoad.BuildRoadStation(t, t + offset, false, false)) continue;
+			if (!AIRoad.BuildRoadStation(t, t + offset, false, false, false)) continue;
 			local manager = StationManager(AIStation.GetStationID(t));
 			this._stations.push(manager);
 			return manager;

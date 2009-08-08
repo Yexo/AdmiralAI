@@ -250,9 +250,18 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	::vehicles_to_sell.KeepValue(1);
 	foreach (vehicle, dummy in ::vehicles_to_sell) {
 		if (!AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER))) {
-			AIVehicle.SendVehicleToDepot(vehicle);
+			if (!AIVehicle.SendVehicleToDepot(vehicle)) {
+				AIVehicle.ReverseVehicle(vehicle);
+				this.Sleep(50);
+				AIVehicle.SendVehicleToDepot(vehicle);
+			}
 		}
 	}
+}
+
+function AdmiralAI::NulValuator(item)
+{
+	return 0;
 }
 
 function AdmiralAI::Start()
@@ -265,6 +274,7 @@ function AdmiralAI::Start()
 	Utils.SetCompanyName(Utils.RandomReorder(["AdmiralAI"]));
 	AILog.Info(AICompany.GetCompanyName(AICompany.MY_COMPANY) + " has just started!");
 
+	if (!AIGameSettings.IsValid("vehicle.max_roadveh")) throw("vehicle.max_roadveh is not valid, please update!");
 	if (!AIGameSettings.IsValid("difficulty.vehicle_breakdowns")) throw("difficulty.vehicle_breakdowns is not valid, please update!");
 	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1) {
 		AILog.Info("Breakdowns are on, so enabling autorenew");
@@ -299,26 +309,53 @@ function AdmiralAI::Start()
 		}
 		local build_route = false;
 		this.GetMoney(200000);
-		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000 && !need_vehicle_check) {
-			if (build_busses) {
-				if (Config.enable_busses) build_route = this._bus_manager.NewLineExistingRoad();
-				if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
-			} else {
-				if (Config.enable_trucks) build_route = this._truck_manager.NewLineExistingRoad();
-				if (Config.enable_busses) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
+		local veh_list = AIVehicleList();
+		veh_list.Valuate(AIVehicle.GetVehicleType);
+		veh_list.KeepValue(AIVehicle.VEHICLE_ROAD);
+		if (AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
+			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000 && !need_vehicle_check) {
+				if (build_busses) {
+					if (Config.enable_busses) build_route = this._bus_manager.NewLineExistingRoad();
+					if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
+				} else {
+					if (Config.enable_trucks) build_route = this._truck_manager.NewLineExistingRoad();
+					if (Config.enable_busses) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
+				}
+			}
+			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000 && !need_vehicle_check) {
+				if (build_busses) {
+					if (Config.enable_busses) build_route = this._bus_manager.BuildNewLine();
+					if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.BuildNewLine();
+				} else {
+					if (Config.enable_trucks) build_route = this._truck_manager.BuildNewLine();
+					if (Config.enable_busses) if (!build_route) build_route = this._bus_manager.BuildNewLine();
+				}
+			}
+			// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.
+			build_busses = !build_busses;
+		}
+		if (Config.build_statues) {
+			this.GetMoney(1000000);
+			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) > 500000) {
+				local town_list = AITownList();
+				town_list.Valuate(AITown.HasStatue);
+				town_list.RemoveValue(1);
+				town_list.Valuate(AdmiralAI.NulValuator);
+				local station_list = AIStationList(AIStation.STATION_ANY);
+				station_list.Valuate(AIStation.GetNearestTown);
+				foreach (station, town in station_list) {
+					if (town_list.HasItem(town)) {
+						town_list.SetValue(town, town_list.GetValue(town) + 1);
+					}
+				}
+				if (town_list.Count() > 0) {
+					town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+					local town = town_list.Begin();
+					AITown.PerformTownAction(town, AITown.TOWN_ACTION_BUILD_STATUE);
+				}
 			}
 		}
-		if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000 && !need_vehicle_check) {
-			if (build_busses) {
-				if (Config.enable_busses) build_route = this._bus_manager.BuildNewLine();
-				if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.BuildNewLine();
-			} else {
-				if (Config.enable_trucks) build_route = this._truck_manager.BuildNewLine();
-				if (Config.enable_busses) if (!build_route) build_route = this._bus_manager.BuildNewLine();
-			}
-		}
-		// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.
-		build_busses = !build_busses;
+		this.GetMoney(200000);
 		this.Sleep(1);
 	}
 };

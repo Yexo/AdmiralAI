@@ -27,7 +27,7 @@ class BusLine
 		local station_id_to = station_to.GetStationID();
 		local loc_from = AIStation.GetLocation(station_id_from);
 		local loc_to = AIStation.GetLocation(station_id_to);
-		local distance = AIMap.DistanceManhattan(loc_from, loc_to);
+		this._distance = AIMap.DistanceManhattan(loc_from, loc_to);
 		local acceptance = AITile.GetCargoAcceptance(loc_from, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
 		acceptance += AITile.GetCargoAcceptance(loc_to, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
 		this.BuildVehicles(2);
@@ -72,13 +72,16 @@ class BusLine
 	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
 	_cargo = null;        ///< The CargoID of the passengers we'll transport.
 	_engine_id = null;    ///< The EngineID of the vehicles on this route.
+	_distance = null;
 };
 
 function BusLine::BuildVehicles(num)
 {
-	local max_to_build = min(min(this._station_from.CanAddBusses(num), this._station_to.CanAddBusses(num)), num);
-	if (max_to_build == 0) return;
+	this._vehicle_list = AIVehicleList_Station(this._station_from.GetStationID());
 	this._FindEngineID();
+	local max_speed = AIEngine.GetMaxSpeed(this._engine_id);
+	local max_to_build = min(min(this._station_from.CanAddBusses(num, this._distance, max_speed), this._station_to.CanAddBusses(num, this._distance, max_speed)), num);
+	if (max_to_build == 0) return;
 	for (local i = 0; i < max_to_build; i++) {
 		local v = AIVehicle.BuildVehicle(this._depot_tile, this._engine_id);
 		if (!AIVehicle.IsValidVehicle(v)) {
@@ -95,9 +98,8 @@ function BusLine::BuildVehicles(num)
 			AIOrder.ChangeOrder(v, 2, AIOrder.AIOF_SERVICE_IF_NEEDED);
 		}
 		if (i % 2) AIVehicle.SkipToVehicleOrder(v, 1);
-		this._vehicle_list.AddItem(v, 0);
-		this._station_from.AddBusses(1);
-		this._station_to.AddBusses(1);
+		this._station_from.AddBusses(1, this._distance, max_speed);
+		this._station_to.AddBusses(1, this._distance, max_speed);
 		AIVehicle.StartStopVehicle(v);
 	}
 	return true;
@@ -105,15 +107,17 @@ function BusLine::BuildVehicles(num)
 
 function BusLine::CheckVehicles()
 {
-	if (this._vehicle_list == null) return;
+	this._vehicle_list = AIList(); // This is so we can use RemoveItem later on.
+	this._vehicle_list.AddList(AIVehicleList_Station(this._station_from.GetStationID()));
+	local max_speed = AIEngine.GetMaxSpeed(this._engine_id);
 	local build_new = true;
 	local orig_count = this._vehicle_list.Count();
 	this._vehicle_list.Valuate(AIVehicle.IsValidVehicle);
 	this._vehicle_list.KeepValue(1);
 	local valid_count = this._vehicle_list.Count();
 	if (valid_count < orig_count) {
-		this._station_from.RemoveBusses(orig_count - valid_count);
-		this._station_to.RemoveBusses(orig_count - valid_count);
+		this._station_from.RemoveBusses(orig_count - valid_count, this._distance, max_speed);
+		this._station_to.RemoveBusses(orig_count - valid_count, this._distance, max_speed);
 	}
 	local list = AIList();
 	list.AddList(this._vehicle_list);
@@ -126,8 +130,8 @@ function BusLine::CheckVehicles()
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::vehicles_to_sell.AddItem(v, 0);
-		this._station_from.RemoveBusses(1);
-		this._station_to.RemoveBusses(1);
+		this._station_from.RemoveBusses(1, this._distance, max_speed);
+		this._station_to.RemoveBusses(1, this._distance, max_speed);
 		build_new = false;
 	}
 

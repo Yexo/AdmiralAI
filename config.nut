@@ -10,4 +10,6 @@ class Config
 	enable_trucks = true;
 
 	enable_busses = true;
+
+	build_statues = true;
 };
