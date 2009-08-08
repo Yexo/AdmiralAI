@@ -1,4 +1,23 @@
-/** @file utils.nut Implementation of Utils. */
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
+ /** @file utils.nut Implementation of Utils. */
 
 /**
  * A general class containing some utility functions.
@@ -43,6 +62,13 @@ class Utils
 	 * @return A string containing all item => value pairs from the list.
 	 */
 	static function AIListToString(list);
+
+	/**
+	 * Check if all settings are valid and throw an error if one or more is not valid.
+	 * @param list An array of strings to check.
+	 * @return No value is returned, but an exception is thrown if at least one setting is invalid.
+	 */
+	static function CheckSettings(list);
 };
 
 function Utils::SetCompanyName(name_array)
@@ -53,7 +79,7 @@ function Utils::SetCompanyName(name_array)
 			if (counter > 0) {
 				name = name + " #" + counter;
 			}
-			if (AICompany.SetCompanyName(name)) return;
+			if (AICompany.SetName(name)) return;
 		}
 		counter++;
 	} while(true);
@@ -121,4 +147,11 @@ function Utils::IsNearlyFlatTile(tile)
 function Utils::VehicleManhattanDistanceToTile(vehicle, tile)
 {
 	return AIMap.DistanceManhattan(AIVehicle.GetLocation(vehicle), tile);
+}
+
+function Utils::CheckSettings(list)
+{
+	foreach (setting in list) {
+		if (!AIGameSettings.IsValid(setting)) throw("Setting is invalid: " + setting);
+	}
 }

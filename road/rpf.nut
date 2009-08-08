@@ -1,3 +1,22 @@
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
 /** @file rpf.nut A custom road pathfinder. */
 
 /**
@@ -124,13 +143,13 @@ class RPF.Cost
 	}
 }
 
-function RPF::InitializePath(sources, goals, max_length_multiplier)
+function RPF::InitializePath(sources, goals, max_length_multiplier, max_length_offset)
 {
 	local nsources = [];
 	foreach (node in sources) {
 		nsources.push([node, 0xFF]);
 	}
-	this._max_path_length = max_length_multiplier * AIMap.DistanceManhattan(sources[0], goals[0]);
+	this._max_path_length = max_length_offset + max_length_multiplier * AIMap.DistanceManhattan(sources[0], goals[0]);
 	this._goal_estimate_tile = goals[0];
 	this._pathfinder.InitializePath(nsources, goals);
 }

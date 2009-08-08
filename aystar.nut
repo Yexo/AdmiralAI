@@ -1,4 +1,23 @@
-/* $Id$ */
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
+/** @file aystar.nut An AyStar implementation. */
 
 /**
  * An AyStar implementation.
@@ -71,10 +90,11 @@ class AyStar
 
 	/**
 	 * Initialize a path search between sources and goals.
-	 * @param sources The source nodes, pairs of [tile, direction].
-	 * @param goals The target tiles.
+	 * @param sources The source nodes. This can an array of either [tile, direction]-pairs or AyStar.Path-instances.
+	 * @param goals The target tiles. This can be an array of either tiles or [tile, next_tile]-pairs.
+	 * @param ignored_tiles An array of tiles that cannot occur in the final path.
 	 */
-	function InitializePath(sources, goals);
+	function InitializePath(sources, goals, ignored_tiles = []);
 
 	/**
 	 * Try to find the path as indicated with InitializePath with the lowest cost.
@@ -89,29 +109,40 @@ class AyStar
 	function FindPath(iterations);
 }
 
-function AyStar::InitializePath(sources, goals)
+function AyStar::InitializePath(sources, goals, ignored_tiles = [])
 {
 	if (typeof(sources) != "array" || sources.len() == 0) throw("sources has be a non-empty array.");
 	if (typeof(goals) != "array" || goals.len() == 0) throw("goals has be a non-empty array.");
 
-	this._open = BinaryHeap();
+	this._open = FibonacciHeap();
 	this._closed = AIList();
 
 	foreach (node in sources) {
-		if (node[1] <= 0) throw("directional value should never be zero or negative.");
+		if (typeof(node) == "array") {
+			if (node[1] <= 0) throw("directional value should never be zero or negative.");
 
-		local new_path = this.Path(null, node[0], node[1], this._cost_callback, this._cost_callback_param);
-		this._open.Insert(new_path, new_path.GetCost() + this._estimate_callback(node[0], node[1], goals, this._estimate_callback_param));
+			local new_path = this.Path(null, node[0], node[1], this._cost_callback, this._cost_callback_param);
+			this._open.Insert(new_path, new_path.GetCost() + this._estimate_callback(node[0], node[1], goals, this._estimate_callback_param));
+		} else {
+			this._open.Insert(node, node.GetCost());
+		}
 	}
 
 	this._goals = goals;
+
+	foreach (tile in ignored_tiles) {
+		this._closed.AddItem(tile, ~0);
+	}
 }
 
 function AyStar::FindPath(iterations)
 {
 	if (this._open == null) throw("can't execute over an uninitialized path");
 
+	local begin_tick = main_instance.GetTick();
+	local num_iterations = 0;
 	while (this._open.Count() > 0 && (iterations == -1 || iterations-- > 0)) {
+		num_iterations++;
 		/* Get the path with the best score so far */
 		local path = this._open.Pop();
 		local cur_tile = path.GetTile();
@@ -120,21 +151,6 @@ function AyStar::FindPath(iterations)
 			/* If the direction is already on the list, skip this entry */
 			if ((this._closed.GetValue(cur_tile) & path.GetDirection()) != 0) continue;
 
-			/* Scan the path for a possible collision */
-			local scan_path = path.GetParent();
-
-			local mismatch = false;
-			while (scan_path != null) {
-				if (scan_path.GetTile() == cur_tile) {
-					if (!this._check_direction_callback(cur_tile, scan_path.GetDirection(), path.GetDirection(), this._check_direction_callback_param)) {
-						mismatch = true;
-						break;
-					}
-				}
-				scan_path = scan_path.GetParent();
-			}
-			if (mismatch) continue;
-
 			/* Add the new direction */
 			this._closed.SetValue(cur_tile, this._closed.GetValue(cur_tile) | path.GetDirection());
 		} else {
@@ -142,10 +158,25 @@ function AyStar::FindPath(iterations)
 			this._closed.AddItem(cur_tile, path.GetDirection());
 		}
 		/* Check if we found the end */
-		foreach (tile in this._goals) {
-			if (cur_tile == tile) {
-				this._CleanPath();
-				return path;
+		foreach (goal in this._goals) {
+			if (typeof(goal) == "array") {
+				if (cur_tile == goal[0]) {
+					local neighbours = this._neighbours_callback(path, cur_tile, this._neighbours_callback_param);
+					foreach (node in neighbours) {
+						if (node[0] == goal[1]) {
+							this._CleanPath();
+							AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+							return path;
+						}
+					}
+					continue;
+				}
+			} else {
+				if (cur_tile == goal) {
+					this._CleanPath();
+					AILog.Warning("Path found in " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
+					return path;
+				}
 			}
 		}
 		/* Scan all neighbours */
@@ -162,6 +193,7 @@ function AyStar::FindPath(iterations)
 
 	if (this._open.Count() > 0) return false;
 	this._CleanPath();
+	AILog.Warning("No path: " + num_iterations + " (" + (main_instance.GetTick() - begin_tick) + ")");
 	return null;
 }
 

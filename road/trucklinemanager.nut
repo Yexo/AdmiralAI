@@ -1,3 +1,22 @@
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
 /** @file trucklinemanager.nut Implemenation of TruckLineManager. */
 
 /**
@@ -115,6 +134,11 @@ class TruckLineManager
 	_goods_drop_towns = null;
 };
 
+function TruckLineManager::TransportCargo(cargo, ind)
+{
+	this._unbuild_routes[cargo].rawdelete(ind);
+}
+
 function TruckLineManager::Save()
 {
 	local data = {pickup_stations = {}, drop_stations = {}, towns_used = [], routes = []};
@@ -191,7 +215,7 @@ function TruckLineManager::Load(data)
 			foreach (ind, dummy in this._unbuild_routes[route_array[5]]) {
 				//AILog.Info(ind + " " + AIIndustry.GetName(ind));
 				if (ind == route_array[0]) {
-					this._unbuild_routes[route_array[5]].rawdelete(ind);
+					AdmiralAI.TransportCargo(route_array[5], ind);
 					break;
 				}
 			}
@@ -310,13 +334,13 @@ function TruckLineManager::BuildNewLine()
 				AILog.Info("Trying to build truck route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
 				local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
 				if (route == null) {
-					local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.5);
+					local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.2, 20);
 					if (ret != 0) return false;
 					route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
 					if (route == null) {AILog.Warning("Couldn't find the route we just built"); continue; }
 					local route2 = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_to), AIIndustry.GetLocation(ind_from), 8);
 					if (route2 == null) {
-						ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.5);
+						ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.2, 20);
 						if (ret != 0) return false;
 						route2 = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_to), AIIndustry.GetLocation(ind_from), 8);
 						if (route2 == null) {
@@ -340,7 +364,7 @@ function TruckLineManager::BuildNewLine()
 					AILog.Info("Route ok");
 					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
 					this._routes.push(line);
-					this._unbuild_routes[cargo].rawdelete(ind_from);
+					AdmiralAI.TransportCargo(cargo, ind_from);
 					this._UsePickupStation(ind_from, station_from);
 					return true;
 				}
@@ -458,6 +482,8 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 		}
 		if (!can_build) continue;
 		foreach (offset in this._GetSortedOffsets(tile, dir_tile)) {
+			/* This is mainly so we don't build a station with the entrance on rails. */
+			if (!AITile.IsBuildable(tile + offset) && !AIRoad.IsRoadTile(tile + offset)) continue;
 			{
 				/* Test if we can build a station and the road to it. */
 				local test = AITestMode();
@@ -568,7 +594,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 					AILog.Info("Route ok");
 					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
 					this._routes.push(line);
-					this._unbuild_routes[cargo].rawdelete(ind_from);
+					AdmiralAI.TransportCargo(cargo, ind_from);
 					this._UsePickupStation(ind_from, station_from);
 					this._skip_ind_to--;
 					return true;
@@ -617,7 +643,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 						AILog.Info("Route ok");
 						local line = TruckLine(ind_from, station_from, null, station_to, depot, cargo, false);
 						this._routes.push(line);
-						this._unbuild_routes[cargo].rawdelete(ind_from);
+						AdmiralAI.TransportCargo(cargo, ind_from);
 						this._UsePickupStation(ind_from, station_from);
 						this._goods_drop_towns.AddItem(town, 1);
 						return true;

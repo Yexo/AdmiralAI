@@ -1,3 +1,22 @@
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
 /** @file buslinemanager.nut Implemenation of BusLineManager. */
 
 /**
@@ -267,13 +286,13 @@ function BusLineManager::BuildNewLine()
 			if (station_from == null) {AILog.Warning("Couldn't build first station"); break;}
 			local station_to = this._town_managers.rawget(town_to).GetStation(this._pax_cargo);
 			if (station_to == null) {AILog.Warning("Couldn't build second station"); continue; }
-			local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.5);
+			local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.2, 20);
 			if (ret != 0) continue;
 			local route = RouteFinder.FindRouteBetweenRects(AITown.GetLocation(town_from), AITown.GetLocation(town_to), 3);
 			local route2 = RouteFinder.FindRouteBetweenRects(AITown.GetLocation(town_to), AITown.GetLocation(town_from), 3);
 			if (route == null) { AILog.Warning("The route we just build could not be found"); continue; }
 			if (route2 == null) {
-				local ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.5);
+				local ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.2, 20);
 				if (ret != 0) continue;
 				route2 = RouteFinder.FindRouteBetweenRects(AITown.GetLocation(town_to), AITown.GetLocation(town_from), 3);
 				if (route2 == null) { AILog.Warning("The route2 we just build could not be found"); continue; }

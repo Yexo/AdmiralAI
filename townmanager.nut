@@ -1,3 +1,22 @@
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
 /** @file townmanager.nut Implementation of TownManager. */
 
 /**
@@ -209,6 +228,11 @@ function TownManager::TryBuildAirport(types, cargo_id)
 		AdmiralAI.AddSquare(tile_list, AITown.GetLocation(this._town_id), 20 + AITown.GetPopulation(this._town_id) / 3000);
 		tile_list.Valuate(AITile.GetCargoAcceptance, cargo_id, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type), AIAirport.GetAirportCoverageRadius(type));
 		tile_list.KeepAboveValue(40);
+		tile_list.Valuate(AITile.GetClosestTown);
+		tile_list.KeepValue(this._town_id);
+		tile_list.Valuate(AIAirport.GetNoiseLevelIncrease, type);
+		tile_list.KeepBelowValue(AITown.GetAllowedNoise(this._town_id) + 1);
+		if (tile_list.Count() == 0) continue;
 		local station_list = AIStationList(AIStation.STATION_AIRPORT);
 		station_list.Valuate(AIStation.GetLocation);
 		foreach (station_id, location in station_list) {

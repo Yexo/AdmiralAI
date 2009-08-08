@@ -1,19 +1,48 @@
+/*
+ * This file is part of AdmiralAI.
+ *
+ * AdmiralAI is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * AdmiralAI is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Copyright 2008 Thijs Marinussen
+ */
+
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
 
-import("queue.binary_heap", "BinaryHeap", 1);
-require("aystar.nut");
-require("rpf.nut");
+import("queue.fibonacci_heap", "FibonacciHeap", 1);
+
 require("utils.nut");
-require("routefinder.nut");
-require("routebuilder.nut");
-require("roadline.nut");
-require("trucklinemanager.nut");
-require("truckline.nut");
 require("stationmanager.nut");
-require("buslinemanager.nut");
-require("aircraftmanager.nut");
-require("busline.nut");
 require("townmanager.nut");
+require("aystar.nut");
+
+require("air/aircraftmanager.nut");
+
+require("road/rpf.nut");
+require("road/routebuilder.nut");
+require("road/routefinder.nut");
+require("road/roadline.nut");
+require("road/busline.nut");
+require("road/truckline.nut");
+require("road/buslinemanager.nut");
+require("road/trucklinemanager.nut");
+
+require("rail/railpathfinder.nut");
+RailPF <- Rail;
+require("rail/trainmanager.nut");
+require("rail/railroutebuilder.nut");
+require("rail/trainline.nut");
+
 
 /**
  * @todo
@@ -50,6 +79,7 @@ class AdmiralAI extends AIController
 		this._truck_manager = TruckLineManager();
 		this._bus_manager = BusLineManager();
 		this._aircraft_manager = AircraftManager(this._bus_manager.GetTownManagerTable());
+		this._train_manager = TrainManager();
 		this._pending_events = [];
 
 		if (::vehicles_to_sell == null) {
@@ -164,6 +194,7 @@ class AdmiralAI extends AIController
 	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
 	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
 	_aircraft_manager = null; ///< The AircraftManager managing all air routes.
+	_train_manager = null;  ///< The TrainManager managing all train routes.
 	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
 	_save_data = null;      ///< Cache of save data during load.
 };
@@ -180,6 +211,7 @@ function AdmiralAI::Save()
 	data.rawset("vehicles_to_sell", to_sell);
 	data.rawset("trucklinemanager", this._truck_manager.Save());
 	data.rawset("buslinemanager", this._bus_manager.Save());
+	data.rawset("trainmanager", this._train_manager.Save());
 
 	this.GetEvents();
 	data.rawset("pending_events", this._pending_events);
@@ -203,6 +235,10 @@ function AdmiralAI::Load(data)
 
 	if (data.rawin("buslinemanager")) {
 		this._bus_manager.Load(data.rawget("buslinemanager"));
+	}
+
+	if (data.rawin("trainmanager")) {
+		this._train_manager.Load(data.rawget("trainmanager"));
 	}
 
 	if (data.rawin("pending_events")) {
@@ -359,10 +395,12 @@ function AdmiralAI::HandleEvents()
 
 			case AIEvent.AI_ET_INDUSTRY_CLOSE:
 				this._truck_manager.IndustryClose(event_pair[1]);
+				this._train_manager.IndustryClose(event_pair[1]);
 				break;
 
 			case AIEvent.AI_ET_INDUSTRY_OPEN:
 				this._truck_manager.IndustryOpen(event_pair[1]);
+				this._train_manager.IndustryOpen(event_pair[1]);
 				break;
 		}
 	}
@@ -389,20 +427,27 @@ function AdmiralAI::NulValuator(item)
 	return 0;
 }
 
+function AdmiralAI::ItemValuator(item)
+{
+	return item;
+}
+
+function AdmiralAI::TransportCargo(cargo, ind)
+{
+	main_instance._truck_manager.TransportCargo(cargo, ind);
+	main_instance._train_manager.TransportCargo(cargo, ind);
+}
+
 function AdmiralAI::Start()
 {
-	for(local i=0; i<AISign.GetMaxSignID(); i++) {
-		if (AISign.IsValidSign(i))
-			AISign.RemoveSign(i);
-	}
+	Utils.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "difficulty.vehicle_breakdowns"]);
+	main_instance = this;
 
-	if (AICompany.GetCompanyName(AICompany.MY_COMPANY).find("AdmiralAI") == null) {
+	if (AICompany.GetName(AICompany.MY_COMPANY).find("AdmiralAI") == null) {
 		Utils.SetCompanyName(Utils.RandomReorder(["AdmiralAI"]));
-		AILog.Info(AICompany.GetCompanyName(AICompany.MY_COMPANY) + " has just started!");
+		AILog.Info(AICompany.GetName(AICompany.MY_COMPANY) + " has just started!");
 	}
 
-	if (!AIGameSettings.IsValid("vehicle.max_roadveh")) throw("vehicle.max_roadveh is not valid, please update!");
-	if (!AIGameSettings.IsValid("difficulty.vehicle_breakdowns")) throw("difficulty.vehicle_breakdowns is not valid, please update!");
 	if (AIGameSettings.GetValue("difficulty.vehicle_breakdowns") >= 1 || this.GetSetting("always_autorenew")) {
 		AILog.Info("Breakdowns are on or the setting always_autorenew is on, so enabling autorenew");
 		AICompany.SetAutoRenewMonths(-3);
@@ -420,6 +465,7 @@ function AdmiralAI::Start()
 	this._bus_manager.AfterLoad();
 	this._truck_manager.AfterLoad();
 	this._aircraft_manager.AfterLoad();
+	this._train_manager.AfterLoad();
 	this._save_data = null;
 	AILog.Info("Loading done");
 
@@ -428,6 +474,7 @@ function AdmiralAI::Start()
 	local last_improve_buslines_date = 0;
 	local build_busses = false;
 	local need_vehicle_check = false;
+	local build_road_route = 3;
 	while(1) {
 		this.GetEvents();
 		this.HandleEvents();
@@ -449,25 +496,41 @@ function AdmiralAI::Start()
 			this.GetMoney(200000);
 			local ret1 = this._bus_manager.CheckRoutes();
 			local ret2 = this._truck_manager.CheckRoutes();
+			local ret3 = this._train_manager.CheckRoutes();
 			last_vehicle_check = AIDate.GetCurrentDate();
-			need_vehicle_check = ret1 || ret2;
+			need_vehicle_check = ret1 || ret2 || ret3;
+		}
+		if (need_vehicle_check) {
+			this.Sleep(20);
+			continue;
 		}
 		local build_route = false;
 		this.GetMoney(200000);
-		local veh_list = AIVehicleList();
-		veh_list.Valuate(AIVehicle.GetVehicleType);
-		veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
-		if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_aircraft")) {
-			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 200000 && !need_vehicle_check) {
-				build_route = this._aircraft_manager.BuildNewRoute();
+		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 180000) {
+			local veh_list = AIVehicleList();
+			veh_list.Valuate(AIVehicle.GetVehicleType);
+			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
+			local new_train_route = AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count() && this.GetSetting("use_trains");
+			local veh_list = AIVehicleList();
+			veh_list.Valuate(AIVehicle.GetVehicleType);
+			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
+			if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_planes")) {
+				if (new_train_route && AIBase.RandRange(2) == 0) {
+					build_route = this._train_manager.BuildNewRoute();
+				} else {
+					build_route = this._aircraft_manager.BuildNewRoute();
+				}
+			} else if (new_train_route) {
+				build_route = this._train_manager.BuildNewRoute();
 			}
+			build_road_route = 3;
 		}
 		this.GetMoney(200000);
 		local veh_list = AIVehicleList();
 		veh_list.Valuate(AIVehicle.GetVehicleType);
 		veh_list.KeepValue(AIVehicle.VEHICLE_ROAD);
-		if (!build_route && AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
-			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000 && !need_vehicle_check) {
+		if (!build_route && build_road_route > 0 && AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
+			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000) {
 				if (build_busses) {
 					if (this.GetSetting("use_busses")) build_route = this._bus_manager.NewLineExistingRoad();
 					if (this.GetSetting("use_trucks")) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
@@ -476,7 +539,7 @@ function AdmiralAI::Start()
 					if (this.GetSetting("use_busses")) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
 				}
 			}
-			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000 && !need_vehicle_check) {
+			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000) {
 				if (build_busses) {
 					if (this.GetSetting("use_busses")) build_route = this._bus_manager.BuildNewLine();
 					if (this.GetSetting("use_trucks")) if (!build_route) build_route = this._truck_manager.BuildNewLine();
@@ -487,6 +550,7 @@ function AdmiralAI::Start()
 			}
 			// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.
 			//build_busses = !build_busses;
+			if (build_route) build_road_route--;
 		}
 		if (this.GetSetting("build_statues")) {
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) + AICompany.GetMaxLoanAmount() - AICompany.GetLoanAmount() > 500000) this.GetMoney(1000000);
@@ -513,8 +577,9 @@ function AdmiralAI::Start()
 			}
 		}
 		this.GetMoney(200000);
-		this.Sleep(1);
+		this.Sleep(10);
 	}
 };
 
 vehicles_to_sell <- null;
+main_instance <- null;

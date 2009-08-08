@@ -1,6 +1,6 @@
 # Configuration
 AI_NAME = AdmiralAI
-AI_VERSION = 10
+AI_VERSION = 12
 FILES = COPYING *.nut
 # End of configuration
 
