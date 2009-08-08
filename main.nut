@@ -1,7 +1,6 @@
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
 
 import("queue.binary_heap", "BinaryHeap", 1);
-require("config.nut");
 require("aystar.nut");
 require("rpf.nut");
 require("utils.nut");
@@ -17,17 +16,18 @@ require("townmanager.nut");
 /**
  * @todo
  *  - Use %AITransactionMode in RepairRoute to check for the costs.
- *  - Look into building a statue in towns: done, as in, it's usefull when enough money is available: code this.
  *  - Inner town routes. Not that important since we have multiple bus stops per town.
  *  - Amount of trucks build initially should depend not only on distance but also on production.
  *  - optimize rpf estimate function by adding 1 turn and height difference. (could be committed)
  *  - If we can't transport more cargo to a certain station, try to find / build a new station we can transport
  *     the goods to and split it.
  *  - Try to stationwalk.
+ *  - Build road stations up or down a hill.
+ *  - Check if a station stopped accepting a certain cargo: if so, stop accepting more trucks for that cargo
+ *     and send a few of the existing trucks to another destination.
  * @bug
  *  - Don't start / end with building a bridge / tunnel, as the tile before it might not be free.
  */
-
 
 /**
  * The main class of AdmiralAI.
@@ -191,6 +191,7 @@ function AdmiralAI::BuildDepot(roadtile)
 			}
 			if (AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) continue;
 			if (AIRoad.IsRoadTile(cur_tile + offset)) continue;
+			if (AIRoad.IsDriveThroughRoadStationTile(cur_tile)) continue;
 			if (!AITile.DemolishTile(cur_tile + offset)) continue;
 			local h = AdmiralAI.GetRealHeight(cur_tile);
 			local h2 = AdmiralAI.GetRealHeight(cur_tile + offset);
@@ -287,6 +288,7 @@ function AdmiralAI::Start()
 
 	local last_vehicle_check = AIDate.GetCurrentDate();
 	local last_cash_output = AIDate.GetCurrentDate();
+	local last_improve_buslines_date = AIDate.GetCurrentDate();
 	local build_busses = false;
 	local need_vehicle_check = false;
 	while(1) {
@@ -297,6 +299,11 @@ function AdmiralAI::Start()
 			AILog.Info("Current date: " + AIDate.GetYear(curdate) + "-" + AIDate.GetMonth(curdate) + "-" + AIDate.GetDayOfMonth(curdate));
 			AILog.Info("Cash - loan: " + AICompany.GetBankBalance(AICompany.MY_COMPANY) + " - " + AICompany.GetLoanAmount());
 			last_cash_output = AIDate.GetCurrentDate();
+		}
+		this.GetMoney(200000);
+		if (AIDate.GetCurrentDate() - last_improve_buslines_date > 200) {
+			this._bus_manager.ImproveLines();
+			last_improve_buslines_date = AIDate.GetCurrentDate();
 		}
 		this.GetMoney(200000);
 		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) < 15000) {this.Sleep(5); continue;}
@@ -315,26 +322,26 @@ function AdmiralAI::Start()
 		if (AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000 && !need_vehicle_check) {
 				if (build_busses) {
-					if (Config.enable_busses) build_route = this._bus_manager.NewLineExistingRoad();
-					if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
+					if (this.GetSetting("use_busses")) build_route = this._bus_manager.NewLineExistingRoad();
+					if (this.GetSetting("use_trucks")) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
 				} else {
-					if (Config.enable_trucks) build_route = this._truck_manager.NewLineExistingRoad();
-					if (Config.enable_busses) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
+					if (this.GetSetting("use_trucks")) build_route = this._truck_manager.NewLineExistingRoad();
+					if (this.GetSetting("use_busses")) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
 				}
 			}
 			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000 && !need_vehicle_check) {
 				if (build_busses) {
-					if (Config.enable_busses) build_route = this._bus_manager.BuildNewLine();
-					if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.BuildNewLine();
+					if (this.GetSetting("use_busses")) build_route = this._bus_manager.BuildNewLine();
+					if (this.GetSetting("use_trucks")) if (!build_route) build_route = this._truck_manager.BuildNewLine();
 				} else {
-					if (Config.enable_trucks) build_route = this._truck_manager.BuildNewLine();
-					if (Config.enable_busses) if (!build_route) build_route = this._bus_manager.BuildNewLine();
+					if (this.GetSetting("use_trucks")) build_route = this._truck_manager.BuildNewLine();
+					if (this.GetSetting("use_busses")) if (!build_route) build_route = this._bus_manager.BuildNewLine();
 				}
 			}
 			// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.
 			build_busses = !build_busses;
 		}
-		if (Config.build_statues) {
+		if (this.GetSetting("build_statues")) {
 			this.GetMoney(1000000);
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) > 500000) {
 				local town_list = AITownList();
@@ -348,6 +355,7 @@ function AdmiralAI::Start()
 						town_list.SetValue(town, town_list.GetValue(town) + 1);
 					}
 				}
+				town_list.KeepAboveValue(0);
 				if (town_list.Count() > 0) {
 					town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 					local town = town_list.Begin();

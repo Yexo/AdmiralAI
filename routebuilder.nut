@@ -36,6 +36,7 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 	if (list.Count() == 0) {
 		AILog.Error("RouteBuilder::BuildRoadRouteFromStation(): No tiles!");
 		AILog.Error("station = " + station + ", valid = " + AIStation.IsValidStation(station));
+		AILog.Error("Station name = " + AIStation.GetName(station));
 		AILog.Error("type = " + station_type);
 		throw("Invalid station passed to BuildRoadRouteFromStation!");
 	}
@@ -44,12 +45,12 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 	foreach (tile, front_tile in list) {
 		sources.push(front_tile);
 	}
-	return RouteBuilder.BuildRoadRoute(RPF(), sources, goals);
+	return RouteBuilder.BuildRoadRoute(RPF(), sources, goals, 4);
 }
 
-function RouteBuilder::BuildRoadRoute(pf, sources, goals)
+function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier)
 {
-	pf.InitializePath(sources, goals);
+	pf.InitializePath(sources, goals, max_length_multiplier);
 	local path = pf.FindPath(-1);
 	if (path == null) {
 		AILog.Warning("RouteBuilder::BuildRoadRoute(): No path could be found");

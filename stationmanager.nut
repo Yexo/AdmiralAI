@@ -11,10 +11,11 @@ class StationManager
 	 * Create a new StationManager.
 	 * @param station_id The StationID of the station to manage.
 	 */
-	constructor(station_id) {
+	constructor(station_id, truckline_manager) {
 		this._station_id = station_id;
 		this._truck_points = 0;
 		this._bus_points = 0;
+		this._truckline_manager = truckline_manager;
 		this._is_drop_station = false;
 	}
 
@@ -89,11 +90,17 @@ class StationManager
 	_truck_points = null;    ///< The total truck points of trucks that have this station in their order list.
 	_bus_points = null;      ///< The total bus points of busses that have this station in their order list.
 	_is_drop_station = null; ///< True if this stations is used for dropping cargo. (passengers don't count)
+	_truckline_manager = null;
 };
 
 function StationManager::SetCargoDrop(is_drop_station)
 {
 	this._is_drop_station = is_drop_station;
+}
+
+function StationManager::IsCargoDrop()
+{
+	return this._is_drop_station;
 }
 
 function StationManager::GetPoints(distance, speed)
@@ -124,6 +131,7 @@ function StationManager::CloseStation()
 			break;
 		}
 	}
+	this._truckline_manager.ClosedStation(this);
 }
 
 function StationManager::GetStationID()
@@ -133,8 +141,8 @@ function StationManager::GetStationID()
 
 function StationManager::CanAddTrucks(num, distance, speed)
 {
-	local station_max_points = 100000;
-	if (this._is_drop_station) station_max_points = 90000;
+	local station_max_points = 90000;
+	if (this._is_drop_station) station_max_points = 80000;
 	local station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
 	local num_truck_stops = station_tilelist.Count();
 	local points_per_truck = StationManager.GetPoints(distance, speed);
@@ -168,7 +176,7 @@ function StationManager::HasBusses()
 function StationManager::CanAddBusses(num, distance, speed)
 {
 	local points_per_bus = StationManager.GetPoints(distance, speed);
-	return ((80000 - this._bus_points) / points_per_bus).tointeger();
+	return ((70000 - this._bus_points) / points_per_bus).tointeger();
 }
 
 function StationManager::AddBusses(num, distance, speed)
@@ -185,6 +193,7 @@ function StationManager::RemoveBusses(num, distance, speed)
 
 function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 {
+	if (AITown.GetRating(AIStation.GetNearestTown(this._station_id), AICompany.MY_COMPANY) <= AITown.TOWN_RATING_VERY_POOR) return;
 	local diagoffsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
 	                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0),
 	                 AIMap.GetTileIndex(-1, -1), AIMap.GetTileIndex(-1, 1),

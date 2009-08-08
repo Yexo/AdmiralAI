@@ -13,7 +13,8 @@ class TownManager
 	 */
 	constructor(town_id) {
 		this._town_id = town_id;
-		this._stations = [];
+		this._unused_stations = [];
+		this._used_stations = [];
 		this._depot_tile = null;
 		this._station_failed_date = 0;
 	}
@@ -42,10 +43,24 @@ class TownManager
 /* private: */
 
 	_town_id = null;             ///< The TownID this TownManager is managing.
-	_stations = null;            ///< An array with all StationManagers within this town.
+	_unused_stations = null;     ///< An array with all StationManagers of unused stations within this town.
+	_used_stations = null;       ///< An array with all StationManagers of in use stations within this town.
 	_depot_tile = null;          ///< The TileIndex of a road depot tile inside this town.
 	_station_failed_date = null; ///< Don't try to build a new station within 60 days of failing to build one.
 };
+
+function TownManager::UseStation(station)
+{
+	foreach (idx, st in this._unused_stations)
+	{
+		if (st == station) {
+			this._unused_stations.remove(idx);
+			this._used_stations.push(station);
+			return;
+		}
+	}
+	throw("Trying to use a station that doesn't belong to this town!");
+}
 
 function TownManager::GetDepot(station_manager)
 {
@@ -59,22 +74,18 @@ function TownManager::GetDepot(station_manager)
 
 function TownManager::CanGetStation()
 {
-	foreach (station in this._stations) {
-		if (!station.HasBusses()) return true;
-	}
+	if (this._unused_stations.len() > 0) return true;
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return false;
 	if (AIDate.GetCurrentDate() - this._station_failed_date < 60) return false;
-	if ((AITown.GetPopulation(this._town_id) / 800).tointeger() + 1 > this._stations.len()) return true;
+	if ((AITown.GetPopulation(this._town_id) / 800).tointeger() + 1 > this._used_stations.len()) return true;
 	return false;
 }
 
 function TownManager::GetStation(pax_cargo_id)
 {
 	local town_center = AITown.GetLocation(this._town_id);
-	foreach (station in this._stations) {
-		if (!station.HasBusses()) return station;
-	}
+	if (this._unused_stations.len() > 0) return this._unused_stations[0];
 	/* We need to build a new station. */
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) {
@@ -99,7 +110,7 @@ function TownManager::GetStation(pax_cargo_id)
 	list.Valuate(AdmiralAI.GetRealHeight);
 	list.KeepAboveValue(0);
 	list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
-	foreach (station in this._stations) {
+	foreach (station in this._used_stations) {
 		local station_id = station.GetStationID();
 		list.Valuate(AIMap.DistanceSquare, AIStation.GetLocation(station_id));
 		list.KeepAboveValue(40);
@@ -123,8 +134,8 @@ function TownManager::GetStation(pax_cargo_id)
 			}
 			if (!AIRoad.BuildRoad(t, t + offset)) continue;
 			if (!AIRoad.BuildRoadStation(t, t + offset, false, false, false)) continue;
-			local manager = StationManager(AIStation.GetStationID(t));
-			this._stations.push(manager);
+			local manager = StationManager(AIStation.GetStationID(t), null);
+			this._unused_stations.push(manager);
 			return manager;
 		}
 	}

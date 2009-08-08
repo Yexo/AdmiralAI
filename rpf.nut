@@ -124,13 +124,13 @@ class RPF.Cost
 	}
 }
 
-function RPF::InitializePath(sources, goals)
+function RPF::InitializePath(sources, goals, max_length_multiplier)
 {
 	local nsources = [];
 	foreach (node in sources) {
 		nsources.push([node, 0xFF]);
 	}
-	this._max_path_length = max(10, 1.5 * AIMap.DistanceManhattan(sources[0], goals[0]));
+	this._max_path_length = max_length_multiplier * AIMap.DistanceManhattan(sources[0], goals[0]);
 	this._goal_estimate_tile = goals[0];
 	this._pathfinder.InitializePath(nsources, goals);
 }
@@ -306,7 +306,8 @@ function RPF::_GetDirection(from, to, is_bridge)
 function RPF::_GetTunnelsBridges(last_node, cur_node, bridge_dir)
 {
 	local slope = AITile.GetSlope(cur_node);
-	if (slope == AITile.SLOPE_FLAT && !AITile.HasTransportType(cur_node + (cur_node - last_node), AITile.TRANSPORT_RAIL) && !AITile.HasTransportType(cur_node + (cur_node - last_node), AITile.TRANSPORT_RAIL)) return [];
+	local next_tile = cur_node + (cur_node - last_node);
+	if (slope == AITile.SLOPE_FLAT && !AITile.HasTransportType(next_tile, AITile.TRANSPORT_RAIL) && !AITile.HasTransportType(next_tile, AITile.TRANSPORT_WATER)) return [];
 	local tiles = [];
 
 	for (local i = 2; i < this._max_bridge_length; i++) {
