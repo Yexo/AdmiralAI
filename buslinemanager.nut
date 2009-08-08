@@ -43,7 +43,7 @@ class BusLineManager
 			this._town_managers.rawset(town, TownManager(town));
 		}
 
-		this._routes = []
+		this._routes = [];
 		this._max_distance_existing_route = 100;
 		this._skip_from = 0;
 		this._skip_to = 0;
@@ -107,6 +107,83 @@ class BusLineManager
 	_last_search_finished = null;
 };
 
+function BusLineManager::Save()
+{
+	local data = {}
+	data.rawset("cargo_id", this._pax_cargo);
+	return data;
+}
+
+function BusLineManager::Load(data)
+{
+	if (data.rawin("cargo_id")) this._pax_cargo = data.rawget("cargo_id");
+}
+
+function BusLineManager::AfterLoad()
+{
+	local vehicle_list = AIVehicleList();
+	vehicle_list.Valuate(AIVehicle.GetVehicleType);
+	vehicle_list.KeepValue(AIVehicle.VEHICLE_ROAD);
+	vehicle_list.Valuate(AIVehicle.GetRoadType);
+	vehicle_list.KeepValue(AIRoad.ROADTYPE_ROAD);
+	vehicle_list.Valuate(AIVehicle.GetCapacity, this._pax_cargo);
+	vehicle_list.KeepAboveValue(0);
+	local st_from = {};
+	local st_to = {};
+	foreach (v, dummy in vehicle_list) {
+		if (AIOrder.GetOrderCount(v) != 3) {
+			::vehicles_to_sell.AddItem(v, 0);
+			continue;
+		}
+		if (AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(v, 0))) AIOrder.MoveOrder(v, 0, 2);
+		if (!AIRoad.IsRoadStationTile(AIOrder.GetOrderDestination(v, 0)) ||
+				!AIRoad.IsRoadStationTile(AIOrder.GetOrderDestination(v, 1)) ||
+				!AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(v, 2))) {
+			::vehicles_to_sell.AddItem(v, 0);
+			continue;
+		}
+		local station_a = AIStation.GetStationID(AIOrder.GetOrderDestination(v, 0));
+		local station_b = AIStation.GetStationID(AIOrder.GetOrderDestination(v, 1));
+		if (st_from.rawin(station_a)) {
+			if (station_b == st_from.rawget(station_a).GetStationTo().GetStationID()) {
+				/* Add the vehicle to both bus station a and b. */
+				local station_from = st_from.rawget(station_a).GetStationFrom();
+				local station_to = st_from.rawget(station_a).GetStationTo();
+				station_from.AddBusses(1, AIMap.DistanceManhattan(AIStation.GetLocation(station_from.GetStationID()), AIStation.GetLocation(station_to.GetStationID())), AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v)));
+				station_to.AddBusses(1, AIMap.DistanceManhattan(AIStation.GetLocation(station_from.GetStationID()), AIStation.GetLocation(station_to.GetStationID())), AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v)));
+			} else {
+				::vehicles_to_sell.AddItem(v, 0);
+				continue;
+			}
+		} else {
+			if (st_to.rawin(station_b) || st_to.rawin(station_b) || st_from.rawin(station_b)) {
+				::vehicles_to_sell.AddItem(v, 0);
+				continue;
+			}
+			/* New BusLine from station_a to station_b. */
+			local station_manager_a = StationManager(station_a, null);
+			local station_manager_b = StationManager(station_b, null);
+			local depot_list = AIDepotList(AITile.TRANSPORT_ROAD);
+			depot_list.Valuate(AIMap.DistanceManhattan, AIStation.GetLocation(station_a));
+			depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+			local depot_tile = depot_list.Begin();
+			local line = BusLine(station_manager_a, station_manager_b, depot_tile, this._pax_cargo, true);
+			this._routes.push(line);
+			st_from.rawset(station_a, line);
+			st_to.rawset(station_b, null);
+		}
+	}
+
+	foreach (town_id, manager in this._town_managers) {
+		manager.ScanMap();
+	}
+
+	foreach (route in this._routes) {
+		route.InitiateAutoReplace();
+	}
+}
+
+
 function BusLineManager::CheckRoutes()
 {
 	foreach (route in this._routes) {
@@ -117,7 +194,6 @@ function BusLineManager::CheckRoutes()
 
 function BusLineManager::ImproveLines()
 {
-	return;
 	for (local i = 0; i < this._routes.len(); i++) {
 		for (local j = i + 1; j < this._routes.len(); j++) {
 			if (this._routes[i].GetDistance() < 100 && this._routes[j].GetDistance() < 100) {
@@ -168,7 +244,7 @@ function BusLineManager::BuildNewLine()
 		townlist.Valuate(BusLineManager._ValuatorReturnItem);
 		townlist.KeepAboveValue(town_from);
 		townlist.Valuate(AITown.GetDistanceManhattanToTile, AITown.GetLocation(town_from));
-		townlist.KeepBetweenValue(10, this._max_distance_new_line);
+		townlist.KeepBetweenValue(50, this._max_distance_new_line);
 		townlist.Sort(AIAbstractList.SORT_BY_VALUE, false);
 		foreach (town_to, dummy in townlist) {
 			if (!this._town_managers.rawget(town_to).CanGetStation()) continue;
@@ -207,7 +283,7 @@ function BusLineManager::BuildNewLine()
 				local depot_tile = manager.GetDepot(station_from);
 				if (depot_tile == null) depot_tile = this._town_managers.rawget(town_to).GetDepot(station_to);
 				if (depot_tile == null) break;
-				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo);
+				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo, false);
 				this._routes.push(line);
 				return true;
 			}
@@ -220,7 +296,7 @@ function BusLineManager::BuildNewLine()
 function BusLineManager::NewLineExistingRoad()
 {
 	if (AIDate.GetCurrentDate() - this._last_search_finished < 10) return false;
-	return this._NewLineExistingRoadGenerator(40);
+	return this._NewLineExistingRoadGenerator(200);
 }
 
 function BusLineManager::_ValuatorReturnItem(item)
@@ -256,7 +332,7 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		townlist.Valuate(BusLineManager._ValuatorReturnItem);
 		townlist.KeepAboveValue(town);
 		townlist.Valuate(AITown.GetDistanceManhattanToTile, AITown.GetLocation(town));
-		townlist.KeepBetweenValue(10, this._max_distance_existing_route);
+		townlist.KeepBetweenValue(50, this._max_distance_existing_route);
 		townlist.Sort(AIAbstractList.SORT_BY_VALUE, false);
 		foreach (town_to, dummy in townlist) {
 			if (town_to_skipped < this._skip_to && do_skip) {
@@ -286,7 +362,7 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				local depot_tile = manager.GetDepot(station_from);
 				if (depot_tile == null) depot_tile = this._town_managers.rawget(town_to).GetDepot(station_to);
 				if (depot_tile == null) break;
-				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo);
+				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo, false);
 				this._routes.push(line);
 				this._skip_to = 0;
 				return true;

@@ -6,6 +6,7 @@ require("rpf.nut");
 require("utils.nut");
 require("routefinder.nut");
 require("routebuilder.nut");
+require("roadline.nut");
 require("trucklinemanager.nut");
 require("truckline.nut");
 require("stationmanager.nut");
@@ -32,6 +33,7 @@ require("townmanager.nut");
  *  - Don't start / end with building a bridge / tunnel, as the tile before it might not be free.
  *  - When building a truck station near a city, connecting it with the road may fail. Either demolish some tiles
  *     or just pathfind from station to other industry, so even though the first part was difficult, a route is build.
+ *  - Upon loading a game, scan all vehicles and set autoreplace for those types we don't choose as new engine_id.
  */
 
 /**
@@ -44,11 +46,35 @@ class AdmiralAI extends AIController
 	constructor() {
 		this._truck_manager = TruckLineManager();
 		this._bus_manager = BusLineManager();
+		this._pending_events = [];
 
 		if (::vehicles_to_sell == null) {
 			::vehicles_to_sell = AIList();
 		}
+
+		this._save_data = null;
 	}
+
+	/**
+	 * Save all data we need to be able to resume later.
+	 * @return A table containing all data that needs to be saved.
+	 * @note This is called by OpenTTD, no need to call from within the AI.
+	 */
+	function Save();
+
+	/**
+	 * Try to resume given the data in the savegame.
+	 * @param data The data that was stored by Save().
+	 * @note The data might have been saved by another AI, so check all
+	 *   values for sanity. Don't asume the savegame data is from this AI.
+	 */
+	function Load(data);
+
+	/**
+	 * Get all events from AIEventController and store them in an
+	 *   in an internal array.
+	 */
+	function GetEvents();
 
 	/**
 	 * Try to get a specifeid amount of money.
@@ -59,11 +85,11 @@ class AdmiralAI extends AIController
 
 	/**
 	 * Get the real tile height of a tile. The real tile hight is the base tile hight plus 1 if
-	 *  the tile is a non-flat tile.
+	 *   the tile is a non-flat tile.
 	 * @param tile The tile to get the height for.
 	 * @return The height of the tile.
 	 * @note The base tile hight is not the same as AITile.GetHeight. The value returned by
-	 *  AITile.GetHeight is one too high in case the north corner is raised.
+	 *   AITile.GetHeight is one too high in case the north corner is raised.
 	 */
 	static function GetRealHeight(tile);
 
@@ -79,7 +105,7 @@ class AdmiralAI extends AIController
 	 * @param roadtile The tile to build a depot near.
 	 * @return The TileIndex of a depot or null.
 	 * @note This calls AdmiralAI::ScanForDepot first, so there is no need to
-	 *  do that explicitly.
+	 *   do that explicitly.
 	 */
 	static function BuildDepot(roadtile);
 
@@ -105,12 +131,27 @@ class AdmiralAI extends AIController
 	static function AddRectangleSafe(tile_list, center_tile, x_min, y_min, x_plus, y_plus);
 
 	/**
-	 * Handle all waiting events.
+	 * Handle all pending events. Events are stored internal in the _pending_events
+	 *  array as [AIEventType, value] pair. The value that is saved depends on the
+	 *  events. For example, for AI_ET_INDUSTRY_CLOSE the IndustryID is saved in value.
 	 */
-	function CheckEvents();
+	function HandleEvents();
+
+	/**
+	 * Try to send all vehicles that will be sold off to a depot. If this fails try
+	 *   to turn a vehicles and then send it again to a depot.
+	 */
+	static function SendVehicleToSellToDepot();
+
+	/**
+	 * A valuator that always returns 0.
+	 * @param item unused.
+	 */
+	static function NulValuator(item);
 
 	/**
 	 * The mainloop.
+	 * @note This is called by OpenTTD, no need to call from within the AI.
 	 */
 	function Start();
 
@@ -118,7 +159,74 @@ class AdmiralAI extends AIController
 
 	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
 	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
+	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
+	_save_data = null;      ///< Cache of save data during load.
 };
+
+function AdmiralAI::Save()
+{
+	if (this._save_data != null) return this._save_data;
+
+	local data = {};
+	local to_sell = [];
+	foreach (veh, dummy in ::vehicles_to_sell) {
+		to_sell.push(veh);
+	}
+	data.rawset("vehicles_to_sell", to_sell);
+	data.rawset("trucklinemanager", this._truck_manager.Save());
+	data.rawset("buslinemanager", this._bus_manager.Save());
+
+	this.GetEvents();
+	data.rawset("pending_events", this._pending_events);
+
+	return data;
+}
+
+function AdmiralAI::Load(data)
+{
+	this._save_data = data;
+
+	if (data.rawin("vehicles_to_sell")) {
+		foreach (v in data.rawget("vehicles_to_sell")) {
+			if (AIVehicle.IsValidVehicle(v)) ::vehicles_to_sell.AddItem(v, 0);
+		}
+	}
+
+	if (data.rawin("trucklinemanager")) {
+		this._truck_manager.Load(data.rawget("trucklinemanager"));
+	}
+
+	if (data.rawin("buslinemanager")) {
+		this._bus_manager.Load(data.rawget("buslinemanager"));
+	}
+
+	if (data.rawin("pending_events")) {
+		this._pending_events = data.rawget("pending_events");
+	}
+}
+
+function AdmiralAI::GetEvents()
+{
+	while (AIEventController.IsEventWaiting()) {
+		local e = AIEventController.GetNextEvent();
+		switch (e.GetEventType()) {
+			case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
+				local c = AIEventVehicleWaitingInDepot.Convert(e);
+				this._pending_events.push([AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT, c.GetVehicleID()]);
+				break;
+
+			case AIEvent.AI_ET_INDUSTRY_CLOSE:
+				local ind = AIEventIndustryClose.Convert(e).GetIndustryID();
+				this._pending_events.push([AIEvent.AI_ET_INDUSTRY_CLOSE, ind]);
+				break;
+
+			case AIEvent.AI_ET_INDUSTRY_OPEN:
+				local ind = AIEventIndustryOpen.Convert(e).GetIndustryID();
+				this._pending_events.push([AIEvent.AI_ET_INDUSTRY_OPEN, ind]);
+				break;
+		}
+	}
+}
 
 function AdmiralAI::GetMoney(amount)
 {
@@ -187,6 +295,7 @@ function AdmiralAI::BuildDepot(roadtile)
 		}
 		foreach (offset in offsets) {
 			if (AIRoad.AreRoadTilesConnected(cur_tile, cur_tile + offset)) {
+				if (AIRoad.IsRoadDepotTile(cur_tile + offset) && AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) return cur_tile + offset;
 				if (!tried.HasItem(cur_tile + offset)) tile_to_try.push(cur_tile + offset);
 				continue;
 			}
@@ -195,8 +304,7 @@ function AdmiralAI::BuildDepot(roadtile)
 				continue;
 			}
 			if (AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) continue;
-			if (AIRoad.IsRoadTile(cur_tile + offset)) continue;
-			if (AIRoad.IsDriveThroughRoadStationTile(cur_tile)) continue;
+			if (AIRoad.IsRoadTile(cur_tile + offset)) continue
 			if (!AITile.DemolishTile(cur_tile + offset)) continue;
 			local h = AdmiralAI.GetRealHeight(cur_tile);
 			local h2 = AdmiralAI.GetRealHeight(cur_tile + offset);
@@ -224,30 +332,27 @@ function AdmiralAI::AddRectangleSafe(tile_list, center_tile, x_min, y_min, x_plu
 	tile_list.AddRectangle(tile_from, tile_to);
 }
 
-function AdmiralAI::CheckEvents()
+function AdmiralAI::HandleEvents()
 {
-	while (AIEventController.IsEventWaiting()) {
-		local e = AIEventController.GetNextEvent();
-		switch (e.GetEventType()) {
+	foreach (event_pair in this._pending_events) {
+		switch (event_pair[0]) {
 			case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
-				local c = AIEventVehicleWaitingInDepot.Convert(e);
-				if (::vehicles_to_sell.HasItem(c.GetVehicleID())) {
-					AIVehicle.SellVehicle(c.GetVehicleID());
-					::vehicles_to_sell.RemoveItem(c.GetVehicleID());
+				if (::vehicles_to_sell.HasItem(event_pair[1])) {
+					AIVehicle.SellVehicle(event_pair[1]);
+					::vehicles_to_sell.RemoveItem(event_pair[1]);
 				}
 				break;
 
 			case AIEvent.AI_ET_INDUSTRY_CLOSE:
-				local ind = AIEventIndustryClose.Convert(e).GetIndustryID();
-				this._truck_manager.IndustryClose(ind);
+				this._truck_manager.IndustryClose(event_pair[1]);
 				break;
 
 			case AIEvent.AI_ET_INDUSTRY_OPEN:
-				local ind = AIEventIndustryOpen.Convert(e).GetIndustryID();
-				this._truck_manager.IndustryOpen(ind);
+				this._truck_manager.IndustryOpen(event_pair[1]);
 				break;
 		}
 	}
+	this._pending_events = [];
 }
 
 function AdmiralAI::SendVehicleToSellToDepot()
@@ -291,13 +396,24 @@ function AdmiralAI::Start()
 		AICompany.SetAutoRenewStatus(false);
 	}
 
-	local last_vehicle_check = AIDate.GetCurrentDate();
+	local group_list = AIGroupList();
+	foreach (group, dummy in group_list) {
+		AIGroup.DeleteGroup(group);
+	}
+
+	this._bus_manager.AfterLoad();
+	this._truck_manager.AfterLoad();
+	this._save_data = null;
+	AILog.Info("Loading done");
+
+	local last_vehicle_check = 0;
 	local last_cash_output = AIDate.GetCurrentDate();
-	local last_improve_buslines_date = AIDate.GetCurrentDate();
+	local last_improve_buslines_date = 0;
 	local build_busses = false;
 	local need_vehicle_check = false;
 	while(1) {
-		this.CheckEvents();
+		this.GetEvents();
+		this.HandleEvents();
 		this.SendVehicleToSellToDepot();
 		if (AIDate.GetCurrentDate() - last_cash_output > 90) {
 			local curdate = AIDate.GetCurrentDate();
@@ -344,10 +460,10 @@ function AdmiralAI::Start()
 				}
 			}
 			// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.
-			build_busses = !build_busses;
+			//build_busses = !build_busses;
 		}
 		if (this.GetSetting("build_statues")) {
-			this.GetMoney(1000000);
+			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) + AICompany.GetMaxLoanAmount() - AICompany.GetLoanAmount() > 500000) this.GetMoney(1000000);
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) > 500000) {
 				local town_list = AITownList();
 				town_list.Valuate(AITown.HasStatue);
@@ -364,7 +480,9 @@ function AdmiralAI::Start()
 				if (town_list.Count() > 0) {
 					town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 					local town = town_list.Begin();
-					AITown.PerformTownAction(town, AITown.TOWN_ACTION_BUILD_STATUE);
+					if (AITown.PerformTownAction(town, AITown.TOWN_ACTION_BUILD_STATUE)) {
+						AILog.Info("Build a statue in " + AITown.GetName(town));
+					}
 				}
 			}
 		}

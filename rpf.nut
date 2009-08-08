@@ -293,8 +293,11 @@ function RPF::_CheckDirection(tile, existing_direction, new_direction, self)
 
 function RPF::_GetDirection(from, to, is_bridge)
 {
-	if (abs(from - to) == 1) return 3;
-	if (abs(from - to) == AIMap.GetMapSizeX()) return 12;
+	if (!is_bridge && Utils.IsNearlyFlatTile(to)) return 0xFF;
+	if (from - to == 1) return 1;
+	if (from - to == -1) return 2;
+	if (from - to == AIMap.GetMapSizeX()) return 4;
+	if (from - to == -AIMap.GetMapSizeX()) return 8;
 }
 
 /**

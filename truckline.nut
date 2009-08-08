@@ -4,7 +4,7 @@
  * Class that controls a line between two industries. It can buy and
  *  sell vehicles to keep up with the demand.
  */
-class TruckLine
+class TruckLine extends RoadLine
 {
 /* public: */
 
@@ -17,24 +17,12 @@ class TruckLine
 	 * @param depot_tile A TileIndex of a depot tile near one of the stations.
 	 * @param cargo The CargoID we are transporting.
 	 */
-	constructor(ind_from, station_from, ind_to, station_to, depot_tile, cargo) {
+	constructor(ind_from, station_from, ind_to, station_to, depot_tile, cargo, loaded) {
+		::RoadLine.constructor(station_from, station_to, depot_tile, cargo, !loaded);
 		this._ind_from = ind_from;
-		this._station_from = station_from;
 		this._ind_to = ind_to;
-		this._station_to = station_to;
-		this._vehicle_list = AIList();
-		this._depot_tile = depot_tile;
-		this._cargo = cargo;
-		this._engine_id = null;
 		this._valid = true;
-		this._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
-		AIGroup.SetName(this._group_id, AICargo.GetCargoLabel(cargo) + ": " + AIStation.GetName(station_from.GetStationID()) + " - " + AIStation.GetName(station_to.GetStationID()));
-		local station_id_from = station_from.GetStationID();
-		local station_id_to = station_to.GetStationID();
-		local loc_from = AIStation.GetLocation(station_id_from);
-		local loc_to = AIStation.GetLocation(station_id_to);
-		this._distance = AIMap.DistanceManhattan(loc_from, loc_to);
-		this.BuildVehicles(3);
+		if (!loaded) this.BuildVehicles(3);
 	}
 
 	/**
@@ -75,29 +63,8 @@ class TruckLine
 
 /* private: */
 
-	/**
-	 * A valuator used in _FindEngineID().
-	 * @param engine_id The EngineID to valuate.
-	 * @return A value for the given EngineID.
-	 */
-	static function _SortEngineList(engine_id);
-
-	/**
-	 * Find the best EngineID for this route. The EngineID is stored
-	 *  in this._engine_id.
-	 */
-	function _FindEngineID();
-
 	_ind_from = null;     ///< The IndustryID where we are transporting cargo from.
-	_station_from = null; ///< The StationManager managing the source station.
 	_ind_to = null;       ///< The IndustryID where we are transporting cargo to.
-	_station_to = null;   ///< The StationManager managing the station we are transporting cargo to.
-	_distance = null;
-	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
-	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
-	_cargo = null;        ///< The CargoID we are transporting.
-	_engine_id = null;    ///< The EngineID of the vehicles on this route.
-	_group_id = null;     ///< The GroupID of the group all vehicles from this route are in.
 	_valid = null;
 };
 
@@ -117,7 +84,7 @@ function TruckLine::CloseRoute()
 {
 	if (!this._valid) return;
 	AILog.Warning("Closing down cargo route");
-	this._vehicle_list = AIVehicleList_Station(this._station_from.GetStationID());
+	this.UpdateVehicleList();
 	foreach (vehicle, dummy in this._vehicle_list) {
 		AIVehicle.SendVehicleToDepot(vehicle);
 		::vehicles_to_sell.AddItem(vehicle, 0);
@@ -129,15 +96,37 @@ function TruckLine::CloseRoute()
 	this._valid = false;
 }
 
+function TruckLine::ScanPoints()
+{
+	this.UpdateVehicleList();
+	foreach (v, dummy in this._vehicle_list) {
+		this._station_from.AddTrucks(1, this._distance, AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v)));
+		this._station_to.AddTrucks(1, this._distance, AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v)));
+	}
+}
+
 function TruckLine::BuildVehicles(num)
 {
-	this._vehicle_list = AIVehicleList_Station(this._station_from.GetStationID());
 	if (!this._valid) return true;
+	this.UpdateVehicleList();
 	this._FindEngineID();
 	if (this._engine_id == null) return;
 	local max_veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
 	local max_to_build = min(min(this._station_from.CanAddTrucks(num, this._distance, max_veh_speed), this._station_to.CanAddTrucks(num, this._distance, max_veh_speed)), num);
 	if (max_to_build == 0) return true;
+	if (max_to_build < 0) {
+		this._vehicle_list.Valuate(AIVehicle.GetAge);
+		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		this._vehicle_list.KeepTop(abs(max_to_build));
+		foreach (v, dummy in this._vehicle_list) {
+			AIVehicle.SendVehicleToDepot(v);
+			::vehicles_to_sell.AddItem(v, 0);
+			this._station_from.RemoveTrucks(1, this._distance, max_speed);
+			this._station_to.RemoveTrucks(1, this._distance, max_speed);
+		}
+		return true;
+	}
+
 	for (local i = 0; i < max_to_build; i++) {
 		local v = AIVehicle.BuildVehicle(this._depot_tile, this._engine_id);
 		if (!AIVehicle.IsValidVehicle(v)) {
@@ -159,15 +148,15 @@ function TruckLine::BuildVehicles(num)
 		this._station_to.AddTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
+		this._vehicle_list.AddItem(v, 0);
 	}
 	return true;
 }
 
 function TruckLine::CheckVehicles()
 {
-	this._vehicle_list = AIList(); // This is so we can use RemoveItem later on.
-	this._vehicle_list.AddList(AIVehicleList_Station(this._station_from.GetStationID()));
 	if (!this._valid) return;
+	this.UpdateVehicleList();
 	if (!AIIndustry.IsValidIndustry(this._ind_from) || (this._ind_to != null && !AIIndustry.IsValidIndustry(this._ind_to))) {
 		this.CloseRoute();
 		return;
@@ -205,11 +194,12 @@ function TruckLine::CheckVehicles()
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::vehicles_to_sell.AddItem(v, 0);
-		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		local max_speed = AIEngine.GetMaxSpeed(AIVehicle.GetEngineType(v));
+		this._station_from.RemoveTrucks(1, this._distance, max_speed);
+		this._station_to.RemoveTrucks(1, this._distance, max_speed);
 	}
 
-	for (local v = this._vehicle_list.Begin(); this._vehicle_list.HasNext(); this._vehicle_list.Next()) {
+	foreach (v, dummy in this._vehicle_list) {
 		if (AIVehicle.GetState(v) == AIVehicle.VS_STOPPED) AIVehicle.StartStopVehicle(v);
 	}
 
@@ -248,33 +238,11 @@ function TruckLine::CheckVehicles()
 	return false;
 }
 
-function TruckLine::_SortEngineList(engine_id)
+function TruckLine::_AutoReplace(old_vehicle_id, new_engine_id)
 {
-	return AIEngine.GetCapacity(engine_id) * AIEngine.GetMaxSpeed(engine_id);
-}
-
-function TruckLine::_FindEngineID()
-{
-	this._vehicle_list = AIVehicleList_Station(this._station_from.GetStationID());
-	local list = AIEngineList(AIVehicle.VEHICLE_ROAD);
-	list.Valuate(AIEngine.GetRoadType);
-	list.KeepValue(AIRoad.ROADTYPE_ROAD);
-	list.Valuate(AIEngine.IsArticulated);
-	list.KeepValue(0);
-	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
-	list.KeepValue(1);
-	list.Valuate(TruckLine._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-	local new_engine_id = null;
-	if (list.Count() != 0) {
-		new_engine_id = list.Begin();
-	}
-	if (this._engine_id != null && new_engine_id != null && this._engine_id != new_engine_id) {
-		AIGroup.SetAutoReplace(this._group_id, this._engine_id, new_engine_id);
-		this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-		this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-		this._station_from.AddTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
-		this._station_to.AddTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
-	}
-	this._engine_id = new_engine_id;
+	AIGroup.SetAutoReplace(this._group_id, old_vehicle_id, new_engine_id);
+	this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(old_vehicle_id));
+	this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(old_vehicle_id));
+	this._station_from.AddTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
+	this._station_to.AddTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
 }

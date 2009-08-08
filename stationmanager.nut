@@ -33,7 +33,10 @@ class StationManager
 	/**
 	 * Is it possible to add some extra trucks to this station?
 	 * @param num The amount of trucks we want to add.
-	 * @return The maximum number of trucks that can be added.
+	 * @return The maximum number of trucks that can be added. If there
+	 *   are currently to many trucks visiting this station, it'll return
+	 *   a negative number indicating the amount of vehicles that need to
+	 *   be sold.
 	 * @note The return value can be higher then num.
 	 */
 	function CanAddTrucks(num, distance, speed);
@@ -58,7 +61,10 @@ class StationManager
 	/**
 	 * Is it possible to add some extra busses to this station?
 	 * @param num The amount of busses we want to add.
-	 * @return The maximum number of busses that can be added.
+	 * @return The maximum number of busses that can be added. If there are
+	 *   currently to many busses visiting this station, it'll return a
+	 *   negative number indicating the amount of vehicles that need to
+	 *   be sold.
 	 * @note The return value can be higher then num.
 	 */
 	function CanAddBusses(num, distance, speed);
@@ -153,7 +159,8 @@ function StationManager::CanAddTrucks(num, distance, speed)
 	station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
 	num_truck_stops = station_tilelist.Count();
 	max_points = station_max_points * num_truck_stops;
-	return ((max_points - this._truck_points) / points_per_truck).tointeger();
+	if (this._truck_points < max_points) return ((max_points - this._truck_points) / points_per_truck).tointeger();
+	return ((this._truck_points - max_points + points_per_truck - 1) / points_per_truck).tointeger();
 }
 
 function StationManager::AddTrucks(num, distance, speed)
@@ -176,7 +183,8 @@ function StationManager::HasBusses()
 function StationManager::CanAddBusses(num, distance, speed)
 {
 	local points_per_bus = StationManager.GetPoints(distance, speed);
-	return ((70000 - this._bus_points) / points_per_bus).tointeger();
+	if (this._bus_points < 70000) return ((70000 - this._bus_points) / points_per_bus).tointeger();
+	return ((this._bus_points - 70000 + points_per_bus - 1) / points_per_bus).tointeger()
 }
 
 function StationManager::AddBusses(num, distance, speed)

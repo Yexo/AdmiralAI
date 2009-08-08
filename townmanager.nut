@@ -49,6 +49,30 @@ class TownManager
 	_station_failed_date = null; ///< Don't try to build a new station within 60 days of failing to build one.
 };
 
+function TownManager::ScanMap()
+{
+	local station_list = AIStationList(AIStation.STATION_BUS_STOP);
+	station_list.Valuate(AIStation.GetNearestTown);
+	station_list.KeepValue(this._town_id);
+
+	foreach (station_id, dummy in station_list) {
+		local vehicle_list = AIVehicleList_Station(station_id);
+		vehicle_list.RemoveList(::vehicles_to_sell);
+		if (vehicle_list.Count() > 0) {
+			this._used_stations.push(StationManager(station_id, null));
+		} else {
+			this._unused_stations.push(StationManager(station_id, null));
+		}
+	}
+
+	local depot_list = AIDepotList(AITile.TRANSPORT_ROAD);
+	depot_list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
+	depot_list.KeepValue(1);
+	depot_list.Valuate(AIMap.DistanceManhattan, AITown.GetLocation(this._town_id));
+	depot_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+	if (depot_list.Count() > 0) this._depot_tile = depot_list.Begin();
+}
+
 function TownManager::UseStation(station)
 {
 	foreach (idx, st in this._unused_stations)
@@ -78,7 +102,7 @@ function TownManager::CanGetStation()
 	local rating = AITown.GetRating(this._town_id, AICompany.MY_COMPANY);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return false;
 	if (AIDate.GetCurrentDate() - this._station_failed_date < 60) return false;
-	if ((AITown.GetPopulation(this._town_id) / 800).tointeger() + 1 > this._used_stations.len()) return true;
+	if (max(1, (AITown.GetPopulation(this._town_id) / 300).tointeger()) > this._used_stations.len()) return true;
 	return false;
 }
 
@@ -110,13 +134,14 @@ function TownManager::GetStation(pax_cargo_id)
 	list.Valuate(AdmiralAI.GetRealHeight);
 	list.KeepAboveValue(0);
 	list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
+	list.KeepValue(1);
 	foreach (station in this._used_stations) {
 		local station_id = station.GetStationID();
 		list.Valuate(AIMap.DistanceSquare, AIStation.GetLocation(station_id));
-		list.KeepAboveValue(40);
+		list.KeepAboveValue(35);
 	}
 	list.Valuate(AITile.GetCargoAcceptance, pax_cargo_id, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
-	list.KeepAboveValue(34);
+	list.KeepAboveValue(25);
 	list.Valuate(AIMap.DistanceManhattan, town_center);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 	foreach (t, dis in list) {

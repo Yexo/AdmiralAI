@@ -50,53 +50,64 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 
 function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier)
 {
-	pf.InitializePath(sources, goals, max_length_multiplier);
-	local path = pf.FindPath(-1);
-	if (path == null) {
-		AILog.Warning("RouteBuilder::BuildRoadRoute(): No path could be found");
-		return -1;
-	}
+	local num_retries = 3;
 
-	while (path != null) {
-		local par = path.GetParent();
-		if (par == null) break;
-		local last_node = path.GetTile();
-		local force_normal_road = false;
-		while (par.GetParent() != null && par.GetTile() - last_node == par.GetParent().GetTile() - par.GetTile()) {
-			last_node = par.GetTile();
-			par = par.GetParent();
-			force_normal_road = true;
+	while (num_retries > 0) {
+		num_retries--;
+		pf.InitializePath(sources, goals, max_length_multiplier);
+		local path = pf.FindPath(-1);
+		if (path == null) {
+			AILog.Warning("RouteBuilder::BuildRoadRoute(): No path could be found");
+			return -1;
 		}
-		if (force_normal_road || AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) == 1 ) {
-			if (!AIRoad.BuildRoad(path.GetTile(), par.GetTile())) {
-				/* An error occured while building a piece of road, check what error it is. */
-				if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -2;
-				if (!RouteBuilder._HandleRoadBuildError(path.GetTile(), par.GetTile())) return -1;
+
+		local route_build = false;
+		while (path != null) {
+			local par = path.GetParent();
+			if (par == null) {
+				route_build = true;
+				break;
 			}
-		} else {
-			/* Build a bridge or tunnel. */
-			if (!AIBridge.IsBridgeTile(path.GetTile()) && !AITunnel.IsTunnelTile(path.GetTile())) {
-				/* If it was a road tile, demolish it first. Do this to work around expended roadbits. */
-				if (AIRoad.IsRoadTile(path.GetTile())) AITile.DemolishTile(path.GetTile());
-				if (AITunnel.GetOtherTunnelEnd(path.GetTile()) == par.GetTile()) {
-					if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_ROAD, path.GetTile())) {
-						if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -2;
-						if (!RouteBuilder._HandleTunnelBuildError(path.GetTile())) return -1;
-					}
-				} else {
-					local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) + 1);
-					bridge_list.Valuate(AIBridge.GetMaxSpeed);
-					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-					if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_ROAD, bridge_list.Begin(), path.GetTile(), par.GetTile())) {
-						if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -2;
-						if (!RouteBuilder._HandleBridgeBuildError(path.GetTile(), par.GetTile())) return -1;
+			local last_node = path.GetTile();
+			local force_normal_road = false;
+			while (par.GetParent() != null && par.GetTile() - last_node == par.GetParent().GetTile() - par.GetTile()) {
+				last_node = par.GetTile();
+				par = par.GetParent();
+				force_normal_road = true;
+			}
+			if (force_normal_road || AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) == 1 ) {
+				if (!AIRoad.BuildRoad(path.GetTile(), par.GetTile())) {
+					/* An error occured while building a piece of road, check what error it is. */
+					if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -2;
+					if (!RouteBuilder._HandleRoadBuildError(path.GetTile(), par.GetTile())) break;
+				}
+			} else {
+				/* Build a bridge or tunnel. */
+				if (!AIBridge.IsBridgeTile(path.GetTile()) && !AITunnel.IsTunnelTile(path.GetTile())) {
+					/* If it was a road tile, demolish it first. Do this to work around expended roadbits. */
+					if (AIRoad.IsRoadTile(path.GetTile())) AITile.DemolishTile(path.GetTile());
+					if (AITunnel.GetOtherTunnelEnd(path.GetTile()) == par.GetTile()) {
+						if (!AITunnel.BuildTunnel(AIVehicle.VEHICLE_ROAD, path.GetTile())) {
+							if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -2;
+							if (!RouteBuilder._HandleTunnelBuildError(path.GetTile())) break;
+						}
+					} else {
+						local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) + 1);
+						bridge_list.Valuate(AIBridge.GetMaxSpeed);
+						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+						if (!AIBridge.BuildBridge(AIVehicle.VEHICLE_ROAD, bridge_list.Begin(), path.GetTile(), par.GetTile())) {
+							if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -2;
+							if (!RouteBuilder._HandleBridgeBuildError(path.GetTile(), par.GetTile())) break;
+						}
 					}
 				}
 			}
+			path = par;
 		}
-		path = par;
+		if (route_build) return 0;
+		AILog.Info("Building a route failed, but pathfinding was ok. Retrying " + num_retries);
 	}
-	return 0;
+	return -1;
 }
 
 function RouteBuilder::_HandleRoadBuildError(from, to)
@@ -111,6 +122,7 @@ function RouteBuilder::_HandleRoadBuildError(from, to)
 		case AIError.ERR_VEHICLE_IN_THE_WAY:
 			local num_retries = 10;
 			while (num_retries-- > 0) {
+				AIController.Sleep(20);
 				if (AIRoad.BuildRoad(from, to)) return true;
 				if (AIError.GetLastError() == AIError.ERR_ALREADY_BUILT) return true;
 				if (AIError.GetLastError() != AIError.ERR_VEHICLE_IN_THE_WAY) return false;

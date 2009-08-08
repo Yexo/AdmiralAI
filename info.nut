@@ -2,8 +2,8 @@ class AdmiralAI extends AIInfo {
 	function GetAuthor()      { return "Thijs Marinussen"; }
 	function GetName()        { return "AdmiralAI"; }
 	function GetDescription() { return "Some random road-building AI"; }
-	function GetVersion()     { return 9; }
-	function GetDate()        { return "2008-07-23"; }
+	function GetVersion()     { return 10; }
+	function GetDate()        { return "2008-08-05"; }
 	function CreateInstance() { return "AdmiralAI"; }
 	function GetSettings() {
 		SetSetting({name = "use_busses", description = "Set to 1 to enable busses", min_value = 0, max_value = 1, easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = 0});

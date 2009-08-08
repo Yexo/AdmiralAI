@@ -55,7 +55,6 @@ class TruckLineManager
 	 */
 	function NewLineExistingRoad();
 
-
 /* private: */
 
 	/**
@@ -116,6 +115,102 @@ class TruckLineManager
 	_goods_drop_towns = null;
 };
 
+function TruckLineManager::Save()
+{
+	local data = {pickup_stations = {}, drop_stations = {}, towns_used = [], routes = []};
+
+	foreach (ind, managers in this._ind_to_pickup_stations) {
+		local station_ids = [];
+		foreach (manager in managers) {
+			station_ids.push([manager[0].GetStationID(), manager[1]]);
+		}
+		data.pickup_stations.rawset(ind, station_ids);
+	}
+
+	foreach (ind, station_manager in this._ind_to_drop_station) {
+		data.drop_stations.rawset(ind, station_manager.GetStationID());
+	}
+
+	foreach (town, dummy in this._goods_drop_towns) {
+		data.towns_used.push(town);
+	}
+
+	foreach (route in this._routes) {
+		if (!route._valid) continue;
+		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tile, route._cargo]);
+	}
+
+	return data;
+}
+
+function TruckLineManager::Load(data)
+{
+	if (data.rawin("pickup_stations")) {
+		foreach (ind, manager_array in data.rawget("pickup_stations")) {
+			local new_man_array = [];
+			foreach (man_info in manager_array) {
+				new_man_array.push([StationManager(man_info[0], this), man_info[1]]);
+			}
+			this._ind_to_pickup_stations.rawset(ind, new_man_array);
+		}
+	}
+
+	if (data.rawin("drop_stations")) {
+		foreach (ind, station_id in data.rawget("drop_stations")) {
+			this._ind_to_drop_station.rawset(ind, StationManager(station_id, this));
+		}
+	}
+
+	if (data.rawin("towns_used")) {
+		foreach (town_id in data.rawget("towns_used")) {
+			this._goods_drop_towns.AddItem(town_id, 1);
+		}
+	}
+
+	if (data.rawin("routes")) {
+		foreach (route_array in data.rawget("routes")) {
+			local station_from = null;
+			foreach (station in this._ind_to_pickup_stations.rawget(route_array[0])) {
+				if (station[0].GetStationID() == route_array[1]) {
+					station_from = station[0];
+					break;
+				}
+			}
+			local station_to = null;
+			if (this._ind_to_drop_station.rawin(route_array[2])) {
+				local station = this._ind_to_drop_station.rawget(route_array[2]);
+				if (station.GetStationID() == route_array[3]) {
+					station_to = station;
+				}
+			}
+			if (station_from == null || station_to == null) continue;
+			local route = TruckLine(route_array[0], station_from, route_array[2], station_to, route_array[4], route_array[5], true);
+			route.ScanPoints();
+			this._routes.push(route);
+			if (this._unbuild_routes.rawin(route_array[5])) {
+			foreach (ind, dummy in this._unbuild_routes[route_array[5]]) {
+				//AILog.Info(ind + " " + AIIndustry.GetName(ind));
+				if (ind == route_array[0]) {
+					this._unbuild_routes[route_array[5]].rawdelete(ind);
+					break;
+				}
+			}
+			} else {
+				AILog.Error("CargoID " + route_array[5] + " not in unbuild_routes");
+			}
+		}
+	}
+}
+
+function TruckLineManager::AfterLoad()
+{
+	foreach (route in this._routes) {
+		route._group_id = AIGroup.CreateGroup(AIVehicle.VEHICLE_ROAD);
+		route.RenameGroup();
+		route.InitiateAutoReplace();
+	}
+}
+
 function TruckLineManager::ClosedStation(station)
 {
 	if (station.IsCargoDrop()) {
@@ -162,18 +257,17 @@ function TruckLineManager::IndustryClose(industry_id)
 			AILog.Warning("Closed route");
 		}
 	}
+	foreach (cargo, table in this._unbuild_routes) {
+		this._unbuild_routes[cargo].rawdelete(industry_id);
+	}
 }
 
 function TruckLineManager::IndustryOpen(industry_id)
 {
 	AILog.Info("New industry: " + AIIndustry.GetName(industry_id));
-	local cargo_list = AICargoList();
-	foreach (cargo, dummy in cargo_list) {
-		local ind_list = AIIndustryList_CargoProducing(cargo);
-		if (ind_list.HasItem(industry_id)) {
-			if (!this._unbuild_routes.rawin(cargo)) this._unbuild_routes.rawset(cargo, {});
-			this._unbuild_routes[cargo].rawset(industry_id, 1);
-		}
+	foreach (cargo, dummy in AICargoList_IndustryProducing(industry_id)) {
+		if (!this._unbuild_routes.rawin(cargo)) this._unbuild_routes.rawset(cargo, {});
+		this._unbuild_routes[cargo].rawset(industry_id, 1);
 	}
 }
 
@@ -244,7 +338,7 @@ function TruckLineManager::BuildNewLine()
 				local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 				if (ret1 == 0 && ret2 == 0) {
 					AILog.Info("Route ok");
-					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo);
+					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
 					this._routes.push(line);
 					this._unbuild_routes[cargo].rawdelete(ind_from);
 					this._UsePickupStation(ind_from, station_from);
@@ -279,12 +373,12 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 	tile_list.RemoveBetweenValue(AICompany.FIRST_COMPANY - 1, AICompany.LAST_COMPANY + 1);
 	tile_list.Valuate(AdmiralAI.GetRealHeight);
 	tile_list.KeepAboveValue(0);
-	tile_list.Valuate(AIMap.DistanceManhattan, dir_tile);
+	tile_list.Valuate(AIBase.RandItem);
 	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 	foreach (tile, dummy in tile_list) {
 		local can_build = true;
 		foreach (offset in diagoffsets) {
-			if (AIRoad.IsRoadStationTile(tile + offset)) can_build = false;
+			if (AITile.IsStationTile(tile + offset)) can_build = false;
 		}
 		if (!can_build) continue;
 		foreach (offset in this._GetSortedOffsets(tile, dir_tile)) {
@@ -294,7 +388,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 				if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) {
 					{
 						local exec = AIExecMode();
-						if (!AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
+						if (AdmiralAI.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 				}
@@ -355,12 +449,12 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 		tile_list.Valuate(AITile.GetCargoAcceptance, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_TRUCK_STOP));
 		tile_list.KeepAboveValue(7);
 	}
-	tile_list.Valuate(AIMap.DistanceManhattan, dir_tile);
+	tile_list.Valuate(AIBase.RandItem);
 	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, producing);
 	foreach (tile, dummy in tile_list) {
 		local can_build = true;
 		foreach (offset in diagoffsets) {
-			if (AIRoad.IsRoadStationTile(tile + offset)) can_build = false;
+			if (AITile.IsStationTile(tile + offset)) can_build = false;
 		}
 		if (!can_build) continue;
 		foreach (offset in this._GetSortedOffsets(tile, dir_tile)) {
@@ -370,7 +464,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 				if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) {
 					{
 						local exec = AIExecMode();
-						if (!AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
+						if (AdmiralAI.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
 				}
@@ -472,7 +566,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 				if (ret1 == 0 && ret2 == 0) {
 					AILog.Info("Route ok");
-					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo);
+					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
 					this._routes.push(line);
 					this._unbuild_routes[cargo].rawdelete(ind_from);
 					this._UsePickupStation(ind_from, station_from);
@@ -521,7 +615,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 					local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 					if (ret1 == 0 && ret2 == 0) {
 						AILog.Info("Route ok");
-						local line = TruckLine(ind_from, station_from, null, station_to, depot, cargo);
+						local line = TruckLine(ind_from, station_from, null, station_to, depot, cargo, false);
 						this._routes.push(line);
 						this._unbuild_routes[cargo].rawdelete(ind_from);
 						this._UsePickupStation(ind_from, station_from);
