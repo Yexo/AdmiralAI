@@ -54,6 +54,15 @@ class RouteBuilder
 	static function DeleteDeadEnd(tile);
 };
 
+function RouteBuilder::GetRoadStationFrontTile(tile)
+{
+	if (AIRoad.IsRoadStationTile(tile)) return AIRoad.GetRoadStationFrontTile(tile);
+	AIRoad.SetCurrentRoadType(AIRoad.GetCurrentRoadType() == AIRoad.ROADTYPE_ROAD ? AIRoad.ROADTYPE_TRAM : AIRoad.ROADTYPE_ROAD);
+	local ret = AIRoad.GetRoadStationFrontTile(tile);
+	AIRoad.SetCurrentRoadType(AIRoad.GetCurrentRoadType() == AIRoad.ROADTYPE_ROAD ? AIRoad.ROADTYPE_TRAM : AIRoad.ROADTYPE_ROAD);
+	return ret;
+}
+
 function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 {
 	local list = AITileList_StationType(station, station_type);
@@ -64,7 +73,7 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 		AILog.Error("type = " + station_type);
 		throw("Invalid station passed to BuildRoadRouteFromStation!");
 	}
-	list.Valuate(AIRoad.GetRoadStationFrontTile);
+	list.Valuate(RouteBuilder.GetRoadStationFrontTile);
 	local sources = [];
 	foreach (tile, front_tile in list) {
 		sources.push(front_tile);

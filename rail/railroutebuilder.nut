@@ -303,6 +303,7 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	local num_retries = 3;
 	local building_ok = false;
 	while (num_retries-- > 0) {
+		RailRouteBuilder.ImprovePath(path);
 		if (RailRouteBuilder.TestBuildPath(path)) {
 			if (RailRouteBuilder.BuildPath(path)) {
 				building_ok = true;
@@ -405,6 +406,7 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	local num_retries = 3;
 	local building_ok = false;
 	while (num_retries-- > 0) {
+		RailRouteBuilder.ImprovePath(path);
 		if (RailRouteBuilder.TestBuildPath(path)) {
 			if (RailRouteBuilder.BuildPath(path)) {
 				building_ok = true;
@@ -424,6 +426,113 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	}
 	RailRouteBuilder.SignalPath(path);
 	return [depot1, depot2];
+}
+
+/**
+ * Get the slope if a rail is build on certain tile.
+ * Return 0 if not sloped,
+ * 1 if end > start,
+ * 2 if end < start.
+ */
+function RailRouteBuilder::GetSlope(start, middle, end)
+{
+	local NW = 0; // Set to true if we want to build a rail to / from the north-west
+	local NE = 0; // Set to true if we want to build a rail to / from the north-east
+	local SW = 0; // Set to true if we want to build a rail to / from the south-west
+	local SE = 0; // Set to true if we want to build a rail to / from the south-east
+
+	if (middle - AIMap.GetMapSizeX() == start || middle - AIMap.GetMapSizeX() == end) NW = 1;
+	if (middle - 1 == start || middle - 1 == end) NE = 1;
+	if (middle + AIMap.GetMapSizeX() == start || middle + AIMap.GetMapSizeX() == end) SE = 1;
+	if (middle + 1 == start || middle + 1 == end) SW = 1;
+
+	/* If there is a turn in the current tile, it can't be sloped. */
+	if ((NW || SE) && (NE || SW)) return 0;
+
+	local slope = AITile.GetSlope(middle);
+	/* A rail on a steep slope is always sloped. */
+	if (AITile.IsSteepSlope(slope)) {
+		switch (slope) {
+			case AITile.SLOPE_STEEP_W: slope = AITile.SLOPE_W; break;
+			case AITile.SLOPE_STEEP_S: slope = AITile.SLOPE_S; break;
+			case AITile.SLOPE_STEEP_E: slope = AITile.SLOPE_E; break;
+			case AITile.SLOPE_STEEP_N: slope = AITile.SLOPE_N; break;
+			default: throw("Not reached");
+		}
+	}
+
+	/* If only one corner is raised, the rail is sloped. */
+	switch (slope) {
+		case AITile.SLOPE_N: return (end < start) ? 1 : 2;
+		case AITile.SLOPE_S: return (end < start) ? 2 : 1;
+		case AITile.SLOPE_E:
+			if (abs(start - end) == 2) {
+				return (end < start) ? 1 : 2;
+			} else {
+				return (end < start) ? 2 : 1;
+			}
+		case AITile.SLOPE_W:
+			if (abs(start - end) == 2) {
+				return (end < start) ? 2 : 1;
+			} else {
+				return (end < start) ? 1 : 2;
+			}
+	}
+
+	if (NW && (slope == AITile.SLOPE_NW)) return (end < start) ? 1 : 2;
+	if (NW && (slope == AITile.SLOPE_SE)) return (end < start) ? 2 : 1;
+	if (NE && (slope == AITile.SLOPE_NE)) return (end < start) ? 1 : 2;
+	if (NE && (slope == AITile.SLOPE_SW)) return (end < start) ? 2 : 1;
+
+	return 0;
+}
+
+function RailRouteBuilder::ImprovePath(path)
+{
+	local p1 = null;
+	local p2 = null;
+	local p3 = null;
+	local p4 = null;
+	while (path != null) {
+		local p0 = path.GetTile();
+		if (p1 != null && AIMap.DistanceManhattan(p0, p1) != 1) {
+			p0 = null;
+			p1 = null;
+			p2 = null;
+			p3 = null;
+			p4 = null;
+		}
+		if (p4 != null) {
+			local s1 = RailRouteBuilder.GetSlope(p0, p1, p2);
+			local s2 = RailRouteBuilder.GetSlope(p1, p2, p3);
+			local s3 = RailRouteBuilder.GetSlope(p2, p3, p4);
+			if (s2 == 0 && s1 != 0 && s3 != 0 && s1 != s3) {
+				if (s1 == 2) {
+					AITile.RaiseTile(p2, AITile.GetComplementSlope(AITile.GetSlope(p2)));
+				} else {
+					local slope = AITile.GetSlope(p2);
+					if (slope == AITile.SLOPE_FLAT) slope = AITile.SLOPE_ELEVATED;
+					AITile.LowerTile(p2, slope);
+				}
+			}
+		}
+		if (p3 != null) {
+			local s1 = RailRouteBuilder.GetSlope(p0, p1, p2);
+			local s2 = RailRouteBuilder.GetSlope(p1, p2, p3);
+			if (s1 != 0 && s2 != 0 && s1 != s2) {
+				if (s1 == 2) {
+					AITile.RaiseTile(p1, AITile.GetComplementSlope(AITile.GetSlope(p1)));
+				} else {
+					AITile.LowerTile(p1, AITile.GetSlope(p1));
+				}
+			}
+		}
+		p4 = p3;
+		p3 = p2;
+		p2 = p1;
+		p1 = p0;
+		path = path.GetParent();
+	}
 }
 
 function RailRouteBuilder::TestBuildPath(path)

@@ -19,7 +19,7 @@
 
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
 
-import("queue.fibonacci_heap", "FibonacciHeap", 1);
+import("queue.fibonacci_heap", "FibonacciHeap", 2);
 
 require("utils/airport.nut");
 require("utils/array.nut");
@@ -469,7 +469,7 @@ function AdmiralAI::SendVehicleToSellToDepot()
 				dest_is_depot = AIMarine.IsWaterDepotTile(tile);
 				break;
 			case AIVehicle.VT_AIR:
-				dest_is_depot = AIAirport.IsAirportTile(tile) && AIOrder.GetOrderFlags(vehicle, AIOrder.ORDER_CURRENT) == 1;
+				dest_is_depot = AIAirport.IsHangarTile(tile);
 				break;
 		}
 		if (!dest_is_depot) {

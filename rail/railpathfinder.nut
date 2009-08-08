@@ -30,6 +30,7 @@ class RailPF
 	_cost_diagonal_tile = null;    ///< The cost for a diagonal tile.
 	_cost_new_rail = null;         ///< The cost that is added to _cost_tile if new rail has to be build.
 	_cost_turn = null;             ///< The cost that is added to _cost_tile if the direction changes.
+	_cost_90_turn = null;          ///< The cost that is added to _cost_tile (and _cost_turn) for 90* turns.
 	_cost_slope = null;            ///< The extra cost if a rail tile is sloped.
 	_cost_bridge_per_tile = null;  ///< The cost per tile of a new bridge, this is added to _cost_tile.
 	_cost_tunnel_per_tile = null;  ///< The cost per tile of a new tunnel, this is added to _cost_tile.
@@ -52,6 +53,7 @@ class RailPF
 		this._cost_diagonal_tile = 70;
 		this._cost_new_rail = 10;
 		this._cost_turn = 20;
+		this._cost_90_turn = 140;
 		this._cost_slope = 40;
 		this._cost_bridge_per_tile = 50;
 		this._cost_tunnel_per_tile = 40;
@@ -119,6 +121,7 @@ class RailPF.Cost
 			case "new_rail":          this._main._cost_new_rail = val; break;
 			case "diagonal_tile":     this._main._cost_diagonal_tile = val; break;
 			case "turn":              this._main._cost_turn = val; break;
+			case "90_turn":           this._main._cost_90_turn = val; break;
 			case "slope":             this._main._cost_slope = val; break;
 			case "bridge_per_tile":   this._main._cost_bridge_per_tile = val; break;
 			case "tunnel_per_tile":   this._main._cost_tunnel_per_tile = val; break;
@@ -141,6 +144,7 @@ class RailPF.Cost
 			case "diagonal_tile":     return this._main._cost_diagonal_tile;
 			case "new_rail":          return this._main._cost_new_rail;
 			case "turn":              return this._main._cost_turn;
+			case "90_turn":           return this._main._cost_90_turn;
 			case "slope":             return this._main._cost_slope;
 			case "bridge_per_tile":   return this._main._cost_bridge_per_tile;
 			case "tunnel_per_tile":   return this._main._cost_tunnel_per_tile;
@@ -254,6 +258,11 @@ function RailPF::_Cost(path, new_tile, new_direction, self)
 			AIMap.DistanceManhattan(new_tile, path.GetParent().GetParent().GetTile()) == 3 &&
 			path.GetParent().GetParent().GetTile() - path.GetParent().GetTile() != prev_tile - new_tile) {
 		cost += self._cost_turn;
+		if (path.GetParent().GetParent().GetParent() != null &&
+				AIMap.DistanceManhattan(prev_tile, path.GetParent().GetParent().GetParent().GetTile()) == 3 &&
+				path.GetParent().GetParent().GetParent().GetTile() - path.GetParent().GetParent().GetTile() != path.GetParent().GetTile() - prev_tile) {
+			cost += self._cost_90_turn;
+		}
 	}
 	if (path.GetParent() != null && AIRail.AreTilesConnected(path.GetParent().GetTile(), prev_tile, new_tile)) cost -= self._cost_new_rail;
 
@@ -263,9 +272,8 @@ function RailPF::_Cost(path, new_tile, new_direction, self)
 	}
 
 	/* Check if the last tile was sloped. */
-	if (path.GetParent() != null && !AIBridge.IsBridgeTile(prev_tile) && !AITunnel.IsTunnelTile(prev_tile) &&
-			self._IsSlopedRail(path.GetParent().GetTile(), prev_tile, new_tile)) {
-		cost += self._cost_slope;
+	if (path.GetParent() != null && !AIBridge.IsBridgeTile(prev_tile) && !AITunnel.IsTunnelTile(prev_tile)) {
+		cost += self._GetSlopeCost(path.GetParent(), prev_tile, new_tile);
 	}
 
 	/* Check if the next tile is a road tile. */
@@ -439,6 +447,20 @@ function RailPF::_GetTunnelsBridges(last_node, cur_node, bridge_dir)
 		tiles.push([other_tunnel_end, bridge_dir]);
 	}
 	return tiles;
+}
+
+function RailPF::_NumSlopes(path, prev, cur)
+{
+	if (this._IsSlopedRail(path.GetTile(), prev, cur)) {
+		if (path.GetParent() != null) return 1 + this._NumSlopes(path.GetParent(), path.GetTile(), prev);
+		return 1;
+	}
+	return 0;
+}
+
+function RailPF::_GetSlopeCost(path, prev, cur)
+{
+	return this._NumSlopes(path, prev, cur) * this._cost_slope;
 }
 
 function RailPF::_IsSlopedRail(start, middle, end)

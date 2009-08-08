@@ -65,7 +65,7 @@ class TrainLine
 		if (!loaded) {
 			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL);
 			this._RenameGroup();
-			this.BuildVehicles(2);
+			this.BuildVehicles(1);
 		}
 	}
 
@@ -242,9 +242,9 @@ function TrainLine::BuildVehicles(num)
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD_ANY | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
-			AIOrder.AppendOrder(v, this._depot_tiles[1], AIOrder.AIOF_SERVICE_IF_NEEDED);
+			if (this._depot_tiles[1] != null) AIOrder.AppendOrder(v, this._depot_tiles[1], AIOrder.AIOF_SERVICE_IF_NEEDED);
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
-			AIOrder.AppendOrder(v, this._depot_tiles[0], AIOrder.AIOF_SERVICE_IF_NEEDED);
+			if (this._depot_tiles[0] != null) AIOrder.AppendOrder(v, this._depot_tiles[0], AIOrder.AIOF_SERVICE_IF_NEEDED);
 		}
 		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
@@ -443,7 +443,7 @@ function TrainLine::CheckVehicles()
 
 	this._FindEngineID();
 	if (this._engine_id != null && this._wagon_engine_id != null) {
-		if (this._vehicle_list.Count() < 1) return !this.BuildVehicles(2 - this._vehicle_list.Count());
+		if (this._vehicle_list.Count() < 1) return !this.BuildVehicles(1);
 		local cargo_waiting = AIStation.GetCargoWaiting(this._station_from.GetStationID(), this._cargo);
 		list = AIList();
 		list.AddList(this._vehicle_list);
