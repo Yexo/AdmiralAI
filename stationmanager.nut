@@ -2,10 +2,6 @@
 
 /**
  * Class that manages extending existing stations.
- *
- * @todo
- *  - make TryBuildExtraTruckStops terraform when needed.
- *  - Change _num_trucks into some other value that depends on the distance the trucks drive.
  */
 class StationManager
 {
@@ -17,7 +13,7 @@ class StationManager
 	 */
 	constructor(station_id) {
 		this._station_id = station_id;
-		this._num_trucks = 0;
+		this._truck_points = 0;
 		this._num_busses = 0;
 	}
 
@@ -38,19 +34,19 @@ class StationManager
 	 * @return The maximum number of trucks that can be added.
 	 * @note The return value can be higher then num.
 	 */
-	function CanAddTrucks(num);
+	function CanAddTrucks(num, distance, speed);
 
 	/**
 	 * Notify the StationManager that some trucks were added to this station.
 	 * @param num The amount of trucks that were added.
 	 */
-	function AddTrucks(num);
+	function AddTrucks(num, distance, speed);
 
 	/**
 	 * Notify the StationManager that some trucks were removed from this station.
 	 * @param num The amount of trucks that were removed.
 	 */
-	function RemoveTrucks(num);
+	function RemoveTrucks(num, distance, speed);
 
 	/**
 	 * Get the amount of busses with this station in their order list.
@@ -89,14 +85,23 @@ class StationManager
 	function _TryBuildExtraTruckStops(num_to_build, delete_tiles);
 
 	_station_id = null;      ///< The StationID of the station this StationManager manages.
-	_num_trucks = null;      ///< The total number of trucks that has this station in their order list.
-	_num_busses = null;      ///< The total number of busses that has this station in their order list.
+	_truck_points = null;    ///< The total truck points of trucks that have this station in their order list.
+	_num_busses = null;      ///< The total number of busses that have this station in their order list.
 
 };
 
+function StationManager::GetPoints(distance, speed)
+{
+	distance = min(200, distance); //Distances over 200 don't work in this formula. High speeds do work.
+	local ret = 5254 - 109 * distance + 0.426016 * distance * distance + 47.5406 * speed + 1.42885 * distance * speed -
+			0.00784304 * distance * distance * speed + 0.486821 * speed * speed - 0.0161983 * distance * speed * speed +
+			0.0000698203 * distance * distance * speed * speed;
+	return ret.tointeger();
+}
+
 function StationManager::CloseStation()
 {
-	if (this._num_trucks > 0) return;
+	if (this._truck_points > 0) return;
 	local list = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP);
 	foreach (tile, dummy in list) {
 		local tries = 10;
@@ -120,27 +125,31 @@ function StationManager::GetStationID()
 	return this._station_id;
 }
 
-function StationManager::CanAddTrucks(num)
+function StationManager::CanAddTrucks(num, distance, speed)
 {
 	local station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
 	local num_truck_stops = station_tilelist.Count();
-	local max_trucks = num_truck_stops * 15;
-	if (max_trucks - this._num_trucks >= num) return num;
-	local num_too_many = num - (max_trucks - this._num_trucks);
-	this._TryBuildExtraTruckStops(((num_too_many + 14) / 15).tointeger(), false);
+	local points_per_truck = StationManager.GetPoints(distance, speed);
+	local max_points = 100000 * num_truck_stops;
+	if (max_points - this._truck_points >= points_per_truck * num) return num;
+	local points_too_many = points_per_truck * num + this._truck_points - max_points;
+	this._TryBuildExtraTruckStops(((points_too_many + 99999) / 100000).tointeger(), false);
 	station_tilelist = AITileList_StationType(this._station_id, AIStation.STATION_TRUCK_STOP)
 	num_truck_stops = station_tilelist.Count();
-	return num_truck_stops * 15 - this._num_trucks;
+	max_points = 100000 * num_truck_stops;
+	return ((max_points - this._truck_points) / points_per_truck).tointeger();
 }
 
-function StationManager::AddTrucks(num)
+function StationManager::AddTrucks(num, distance, speed)
 {
-	this._num_trucks += num;
+	local points_per_truck = StationManager.GetPoints(distance, speed);
+	this._truck_points += num * points_per_truck;
 }
 
-function StationManager::RemoveTrucks(num)
+function StationManager::RemoveTrucks(num, distance, speed)
 {
-	this._num_trucks -= num;
+	local points_per_truck = StationManager.GetPoints(distance, speed);
+	this._truck_points -= num * points_per_truck;
 }
 
 function StationManager::GetNumBusses()
@@ -198,6 +207,13 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 					if (delete_tiles) {
 						local exec = AIExecMode();
 						if (!AITile.DemolishTile(tile)) continue;
+					}
+					{
+						local exec = AIExecMode();
+						AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)));
+						if (AdmiralAI.GetRealHeight(tile) > AdmiralAI.GetRealHeight(tile + offset)) {
+							AITile.LowerTile(tile, AITile.GetSlope(tile));
+						}
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false)) continue;
 					front_tiles.Valuate(AIMap.DistanceManhattan, tile + offset);

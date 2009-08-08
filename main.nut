@@ -1,6 +1,8 @@
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
 
-import("graph.aystar", "AyStar", 4);
+import("queue.binary_heap", "BinaryHeap", 1);
+require("config.nut");
+require("aystar.nut");
 require("rpf.nut");
 require("utils.nut");
 require("routefinder.nut");
@@ -15,14 +17,15 @@ require("townmanager.nut");
 /**
  * @todo
  *  - Use %AITransactionMode in RepairRoute to check for the costs.
- *  - Better error handling (mostly ERR_VEHICLE_IN_THE_WAY is important to handle, maybe undo build straight in one go).
  *  - Look into building a statue in towns: done, as in, it's usefull when enough money is available: code this.
- *  - Only start building a route if an engine is available for that cargo.
  *  - Inner town routes. Not that important since we have multiple bus stops per town.
  *  - Amount of trucks build initially should depend not only on distance but also on production.
- *  - Max amount of trucks in a station should also depend on travel times (so on how often the truck arrives)
  *  - optimize rpf estimate function by adding 1 turn and height difference. (could be committed)
+ *  - If we can't transport more cargo to a certain station, try to find / build a new station we can transport
+ *     the goods to and split it.
  *  - Try to stationwalk.
+ * @bug
+ *  - Don't start / end with building a bridge / tunnel, as the tile before it might not be free.
  */
 
 
@@ -241,6 +244,17 @@ function AdmiralAI::CheckEvents()
 	}
 }
 
+function AdmiralAI::SendVehicleToSellToDepot()
+{
+	::vehicles_to_sell.Valuate(AIVehicle.IsValidVehicle);
+	::vehicles_to_sell.KeepValue(1);
+	foreach (vehicle, dummy in ::vehicles_to_sell) {
+		if (!AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER))) {
+			AIVehicle.SendVehicleToDepot(vehicle);
+		}
+	}
+}
+
 function AdmiralAI::Start()
 {
 	for(local i=0; i<AISign.GetMaxSignID(); i++) {
@@ -267,6 +281,7 @@ function AdmiralAI::Start()
 	local need_vehicle_check = false;
 	while(1) {
 		this.CheckEvents();
+		this.SendVehicleToSellToDepot();
 		if (AIDate.GetCurrentDate() - last_cash_output > 90) {
 			local curdate = AIDate.GetCurrentDate();
 			AILog.Info("Current date: " + AIDate.GetYear(curdate) + "-" + AIDate.GetMonth(curdate) + "-" + AIDate.GetDayOfMonth(curdate));
@@ -286,20 +301,20 @@ function AdmiralAI::Start()
 		this.GetMoney(200000);
 		if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000 && !need_vehicle_check) {
 			if (build_busses) {
-				build_route = this._bus_manager.NewLineExistingRoad();
-				if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
+				if (Config.enable_busses) build_route = this._bus_manager.NewLineExistingRoad();
+				if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.NewLineExistingRoad();
 			} else {
-				build_route = this._truck_manager.NewLineExistingRoad();
-				if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
+				if (Config.enable_trucks) build_route = this._truck_manager.NewLineExistingRoad();
+				if (Config.enable_busses) if (!build_route) build_route = build_route = this._bus_manager.NewLineExistingRoad();
 			}
 		}
 		if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000 && !need_vehicle_check) {
 			if (build_busses) {
-				build_route = this._bus_manager.BuildNewLine();
-				if (!build_route) build_route = this._truck_manager.BuildNewLine();
+				if (Config.enable_busses) build_route = this._bus_manager.BuildNewLine();
+				if (Config.enable_trucks) if (!build_route) build_route = this._truck_manager.BuildNewLine();
 			} else {
-				build_route = this._truck_manager.BuildNewLine();
-				if (!build_route) build_route = this._bus_manager.BuildNewLine();
+				if (Config.enable_trucks) build_route = this._truck_manager.BuildNewLine();
+				if (Config.enable_busses) if (!build_route) build_route = this._bus_manager.BuildNewLine();
 			}
 		}
 		// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.

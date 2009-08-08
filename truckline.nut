@@ -33,7 +33,7 @@ class TruckLine
 		local station_id_to = station_to.GetStationID();
 		local loc_from = AIStation.GetLocation(station_id_from);
 		local loc_to = AIStation.GetLocation(station_id_to);
-		local distance = AIMap.DistanceManhattan(loc_from, loc_to);
+		this._distance = AIMap.DistanceManhattan(loc_from, loc_to);
 		this.BuildVehicles(3);
 	}
 
@@ -92,6 +92,7 @@ class TruckLine
 	_station_from = null; ///< The StationManager managing the source station.
 	_ind_to = null;       ///< The IndustryID where we are transporting cargo to.
 	_station_to = null;   ///< The StationManager managing the station we are transporting cargo to.
+	_distance = null;
 	_vehicle_list = null; ///< An AIList() containing all vehicles on this route.
 	_depot_tile = null;   ///< A TileIndex indicating the depot that is used by this route (both to build new vehicles and to service existing ones).
 	_cargo = null;        ///< The CargoID we are transporting.
@@ -119,8 +120,8 @@ function TruckLine::CloseRoute()
 	foreach (vehicle, dummy in this._vehicle_list) {
 		AIVehicle.SendVehicleToDepot(vehicle);
 		::vehicles_to_sell.AddItem(vehicle, 0);
-		this._station_from.RemoveTrucks(1);
-		this._station_to.RemoveTrucks(1);
+		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	}
 	this._station_from.CloseStation();
 	this._station_to.CloseStation();
@@ -130,9 +131,10 @@ function TruckLine::CloseRoute()
 function TruckLine::BuildVehicles(num)
 {
 	if (!this._valid) return true;
-	local max_to_build = min(min(this._station_from.CanAddTrucks(num), this._station_to.CanAddTrucks(num)), num);
-	if (max_to_build == 0) return true;
 	this._FindEngineID();
+	local max_veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
+	local max_to_build = min(min(this._station_from.CanAddTrucks(num, this._distance, max_veh_speed), this._station_to.CanAddTrucks(num, this._distance, max_veh_speed)), num);
+	if (max_to_build == 0) return true;
 	for (local i = 0; i < max_to_build; i++) {
 		local v = AIVehicle.BuildVehicle(this._depot_tile, this._engine_id);
 		if (!AIVehicle.IsValidVehicle(v)) {
@@ -149,8 +151,8 @@ function TruckLine::BuildVehicles(num)
 			AIOrder.ChangeOrder(v, 2, AIOrder.AIOF_SERVICE_IF_NEEDED);
 		}
 		this._vehicle_list.AddItem(v, 0);
-		this._station_from.AddTrucks(1);
-		this._station_to.AddTrucks(1);
+		this._station_from.AddTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.AddTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
 	}
@@ -159,12 +161,7 @@ function TruckLine::BuildVehicles(num)
 
 function TruckLine::CheckVehicles()
 {
-	if (!this._valid) {
-		if (this._vehicle_list != null) {
-			foreach (vehicle, dummy in this._vehicle_list) AIVehicle.SendVehicleToDepot(vehicle);
-		}
-		return;
-	}
+	if (!this._valid) return;
 	if (!AIIndustry.IsValidIndustry(this._ind_from)) {
 		this.CloseRoute();
 		return;
@@ -175,23 +172,44 @@ function TruckLine::CheckVehicles()
 	this._vehicle_list.KeepValue(1);
 	local valid_count = this._vehicle_list.Count();
 	if (valid_count < orig_count) {
-		this._station_from.RemoveTrucks(orig_count - valid_count);
-		this._station_to.RemoveTrucks(orig_count - valid_count);
+		this._station_from.RemoveTrucks(orig_count - valid_count, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.RemoveTrucks(orig_count - valid_count, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	}
 
 	local list = AIList();
 	list.AddList(this._vehicle_list);
 	list.Valuate(AIVehicle.GetAge);
-	list.KeepAboveValue(700);
+	list.KeepAboveValue(720);
 	list.Valuate(AIVehicle.GetProfitLastYear);
-	list.KeepBelowValue(0);
+	list.KeepBelowValue(400);
 
 	foreach (v, profit in list) {
 		this._vehicle_list.RemoveItem(v);
 		AIVehicle.SendVehicleToDepot(v);
 		::vehicles_to_sell.AddItem(v, 0);
-		this._station_from.RemoveTrucks(1);
-		this._station_to.RemoveTrucks(1);
+		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+	}
+
+	local list = AIList();
+	list.AddList(this._vehicle_list);
+	list.Valuate(AIOrder.GetOrderDestination, AIOrder.CURRENT_ORDER);
+	list.KeepValue(AIStation.GetLocation(this._station_from.GetStationID()));
+	list.Valuate(AIVehicle.GetCurrentSpeed);
+	list.KeepBelowValue(10);
+	list.Valuate(Utils.VehicleManhattanDistanceToTile, AIStation.GetLocation(this._station_from.GetStationID()));
+	list.KeepBelowValue(5);
+	list.Valuate(AIVehicle.GetState);
+	list.KeepValue(AIVehicle.VS_RUNNING);
+	if (list.Count() > 2) {
+		list.Valuate(AIVehicle.GetAge);
+		list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+		local v = list.Begin();
+		this._vehicle_list.RemoveItem(v);
+		AIVehicle.SendVehicleToDepot(v);
+		::vehicles_to_sell.AddItem(v, 0);
+		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
 	}
 
 	for (local v = this._vehicle_list.Begin(); this._vehicle_list.HasNext(); this._vehicle_list.Next()) {
@@ -207,11 +225,16 @@ function TruckLine::CheckVehicles()
 		list.Valuate(AIVehicle.GetAge);
 		list.KeepBelowValue(250);
 		local num_young_vehicles = list.Count();
-		if (cargo_waiting > 100) {
-			num_new = cargo_waiting / 70 - max(0, num_young_vehicles);
+		local cargo_per_truck = this._vehicle_list.Count() > 0 ? AIVehicle.GetCapacity(this._vehicle_list.Begin(), this._cargo) : AIEngine.GetCapacity(this._engine_id);
+		if (cargo_waiting > 60 && cargo_waiting > 3 * cargo_per_truck) {
+			num_new = (cargo_waiting / cargo_per_truck + 1) / 2- max(0, num_young_vehicles);
 			num_new = min(num_new, 8); // Don't build more than 8 new vehicles a time.
 		}
-		if (AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo) < 65 && num_young_vehicles == 0 && num_new == 0) num_new = 1;
+		local target_rating = 64;
+		if (AITown.HasStatue(AIStation.GetNearestTown(this._station_from.GetStationID()))) target_rating += 10;
+		local veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
+		if (veh_speed > 85) target_rating += min(17, (veh_speed - 85) / 4);
+		if (AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo) < target_rating && num_young_vehicles == 0 && num_new == 0) num_new = 1;
 		if (num_new > 0) return !this.BuildVehicles(num_new);
 	}
 	/* We didn't build any new vehicles, so we don't need more money. */
@@ -233,6 +256,10 @@ function TruckLine::_FindEngineID()
 	local new_engine_id = list.Begin();
 	if (this._engine_id != null && this._engine_id != new_engine_id) {
 		AIGroup.SetAutoReplace(this._group_id, this._engine_id, new_engine_id);
+		this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+		this._station_from.AddTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
+		this._station_to.AddTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(new_engine_id));
 	}
-	this._engine_id = list.Begin();
+	this._engine_id = new_engine_id;
 }

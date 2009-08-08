@@ -1,13 +1,5 @@
 /** @file townmanager.nut Implementation of TownManager. */
 
-/** @todo Be able to bulid multiple bus stops in one town.
-/*
- * Some notes for that:
- *  - bus stops should be a miminum of DistanceSquare 40 apart.
- *  - For inner-town routes, the bus stops should be at least DistanceManhattan 12 apart.
- *  - CargoAcceptance for passenger cargo should be at least 35 (and be tested, maybe 40 is better).
- */
-
 /**
  * Class that manages building multiple bus stations in a town.
  */
@@ -41,11 +33,11 @@ class TownManager
 
 	/**
 	 * Build a new station in the neighbourhood of a given tile.
-	 * @param around_tile The tile we want a station nearby.
+	 * @param pax_cargo_id The id of the passenger cargo.
 	 * @return The StationManager of the newly build station or null if no
 	 *  station could be build.
 	 */
-	function GetStation(around_tile);
+	function GetStation(pax_cargo_id);
 
 /* private: */
 
@@ -77,8 +69,9 @@ function TownManager::CanGetStation()
 	return false;
 }
 
-function TownManager::GetStation(around_tile, pax_cargo_id)
+function TownManager::GetStation(pax_cargo_id)
 {
+	local town_center = AITown.GetLocation(this._town_id);
 	foreach (station in this._stations) {
 		if (station.GetNumBusses() == 0) return station;
 	}
@@ -91,7 +84,14 @@ function TownManager::GetStation(around_tile, pax_cargo_id)
 	}
 
 	local list = AITileList();
-	AdmiralAI.AddSquare(list, around_tile, 10);
+	local radius = 10;
+	local population = AITown.GetPopulation(this._town_id);
+	if (population > 10000) radius += 5;
+	if (population > 15000) radius += 5;
+	if (population > 25000) radius += 5;
+	if (population > 35000) radius += 5;
+	if (population > 45000) radius += 5;
+	AdmiralAI.AddSquare(list, town_center, radius);
 	list.Valuate(AIRoad.GetNeighbourRoadCount);
 	list.KeepAboveValue(0);
 	list.Valuate(AIRoad.IsRoadTile);
@@ -106,26 +106,26 @@ function TownManager::GetStation(around_tile, pax_cargo_id)
 	}
 	list.Valuate(AITile.GetCargoAcceptance, pax_cargo_id, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
 	list.KeepAboveValue(34);
-	list.Valuate(AIMap.DistanceManhattan, around_tile);
+	list.Valuate(AIMap.DistanceManhattan, town_center);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 	foreach (t, dis in list) {
 		if (AICompany.IsMine(AITile.GetOwner(t))) continue;
-		if (!AITile.DemolishTile(t)) continue;
 		local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),
 		                 AIMap.GetTileIndex(1,0), AIMap.GetTileIndex(-1,0)];
 		foreach (offset in offsets) {
-			if (AIRoad.IsRoadTile(t + offset)) {
-				{
-					local testmode = AITestMode();
-					if (!AIRoad.BuildRoad(t, t + offset)) continue;
-					if (!AIRoad.BuildRoadStation(t, t + offset, false, false)) continue;
-				}
-				AIRoad.BuildRoad(t, t + offset);
-				AIRoad.BuildRoadStation(t, t + offset, false, false);
-				local manager = StationManager(AIStation.GetStationID(t));
-				this._stations.push(manager);
-				return manager;
+			if (!AIRoad.IsRoadTile(t + offset)) continue;
+			if (!Utils.IsNearlyFlatTile(t + offset)) continue;
+			if (!AITile.IsBuildable(t) && !AITile.DemolishTile(t)) continue;
+			{
+				local testmode = AITestMode();
+				if (!AIRoad.BuildRoad(t, t + offset)) continue;
+				if (!AIRoad.BuildRoadStation(t, t + offset, false, false)) continue;
 			}
+			if (!AIRoad.BuildRoad(t, t + offset)) continue;
+			if (!AIRoad.BuildRoadStation(t, t + offset, false, false)) continue;
+			local manager = StationManager(AIStation.GetStationID(t));
+			this._stations.push(manager);
+			return manager;
 		}
 	}
 	this._station_failed_date = AIDate.GetCurrentDate();

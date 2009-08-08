@@ -159,6 +159,10 @@ function TruckLineManager::BuildNewLine()
 
 	foreach (cargo, dummy in cargo_list) {
 		if (!this._unbuild_routes.rawin(cargo)) continue;
+		local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+		engine_list.Valuate(AIEngine.CanRefitCargo, cargo);
+		engine_list.KeepValue(1);
+		if (engine_list.Count() == 0) continue;
 		foreach (ind_from, dummy in this._unbuild_routes.rawget(cargo)) {
 			if (AIIndustry.IsBuiltOnWater(ind_from)) continue;
 			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) continue;
@@ -186,14 +190,17 @@ function TruckLineManager::BuildNewLine()
 				AILog.Info("Build cargo route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
 				local station_from = this._GetStationNearIndustry(ind_from, route[0], true, cargo);
 				if (station_from == null) break;
+				local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+				local depot = this._BuildDepot(station_from);
+				if (depot == null) break;
 				local station_to = this._GetStationNearIndustry(ind_to, route[1], false, cargo);
 				if (station_to == null) continue;
-				if (station_to.CanAddTrucks(5) < 5) continue;
-				local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+				/** @todo We have 80 here random speed, maybe create an engine list and take the real value. */
+				if (station_to.CanAddTrucks(5, AIIndustry.GetDistanceManhattanToTile(ind_from, AIIndustry.GetLocation(ind_to)), 80) < 5) continue;
 				local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 				if (ret1 == 0 && ret2 == 0) {
 					AILog.Info("Route ok");
-					local line = TruckLine(ind_from, station_from, ind_to, station_to, this._BuildDepot(station_from), cargo);
+					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo);
 					this._routes.push(line);
 					this._unbuild_routes[cargo].rawdelete(ind_from);
 					return true;
@@ -312,6 +319,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 			} else if (AdmiralAI.GetRealHeight(tile + offset) < AdmiralAI.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
 				if (!AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)))) continue;
 			}
+			if (AITile.GetSlope(tile) != AITile.SLOPE_FLAT) AITile.RaiseTile(tile, AITile.GetComplementSlope(AITile.GetSlope(tile)));
 			/* Build both the road and the station. If building fails, try another location.*/
 			if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false)) continue;
@@ -352,6 +360,10 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			continue;
 		}
 		if (!this._unbuild_routes.rawin(cargo)) continue;
+		local engine_list = AIEngineList(AIVehicle.VEHICLE_ROAD);
+		engine_list.Valuate(AIEngine.CanRefitCargo, cargo);
+		engine_list.KeepValue(1);
+		if (engine_list.Count() == 0) continue;
 		foreach (ind_from, dummy in this._unbuild_routes.rawget(cargo)) {
 			if (ind_from_skipped < this._skip_ind_from && do_skip) {
 				ind_from_skipped++;
@@ -378,14 +390,17 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				AILog.Info("Found cargo route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
 				local station_from = this._GetStationNearIndustry(ind_from, route[0], true, cargo);
 				if (station_from == null) break;
+				local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+				local depot = this._BuildDepot(station_from);
+				if (depot == null) break;
 				local station_to = this._GetStationNearIndustry(ind_to, route[1], false, cargo);
 				if (station_to == null) continue;
-				if (station_to.CanAddTrucks(5) < 5) continue;
-				local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+				/** @todo We have 80 here random speed, maybe create an engine list and take the real value. */
+				if (station_to.CanAddTrucks(5, AIIndustry.GetDistanceManhattanToTile(ind_from, AIIndustry.GetLocation(ind_to)), 80) < 5) continue;
 				local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 				if (ret1 == 0 && ret2 == 0) {
 					AILog.Info("Route ok");
-					local line = TruckLine(ind_from, station_from, ind_to, station_to, this._BuildDepot(station_from), cargo);
+					local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo);
 					this._routes.push(line);
 					this._unbuild_routes[cargo].rawdelete(ind_from);
 					this._skip_ind_to--;
@@ -394,11 +409,26 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			}
 			this._skip_ind_to = 0;
 			do_skip = false;
-			if (AICargo.GetTownEffect(cargo) == AICargo.TE_GOODS) {
+
+			local transport_to_town = false;
+			local min_town_pop;
+			switch (AICargo.GetTownEffect(cargo)) {
+				case AICargo.TE_GOODS:
+					transport_to_town = true;
+					min_town_pop = 1000;
+					break;
+
+				case AICargo.TE_FOOD:
+					transport_to_town = true;
+					min_town_pop = 200;
+					break;
+			}
+
+			if (transport_to_town) {
 				local town_list = AITownList();
 				town_list.RemoveList(this._goods_drop_towns);
 				town_list.Valuate(AITown.GetPopulation);
-				town_list.KeepAboveValue(1000);
+				town_list.KeepAboveValue(min_town_pop);
 				town_list.Valuate(AITown.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 				town_list.KeepAboveValue(50);
 				town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
@@ -408,14 +438,17 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 					AILog.Info("Found goods route between: " + AIIndustry.GetName(ind_from) + " and " + AITown.GetName(town));
 					local station_from = this._GetStationNearIndustry(ind_from, route[0], true, cargo);
 					if (station_from == null) break;
+					local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+					local depot = this._BuildDepot(station_from);
+					if (depot == null) break;
 					local station_to = this._GetStationNearTown(town, route[1], cargo);
 					if (station_to == null) continue;
-					if (station_to.CanAddTrucks(3) < 3) continue;
-					local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
+					/** @todo We have 80 here random speed, maybe create an engine list and take the real value. */
+					if (station_to.CanAddTrucks(5, AIIndustry.GetDistanceManhattanToTile(ind_from, AITown.GetLocation(town)), 80) < 5) continue;
 					local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 					if (ret1 == 0 && ret2 == 0) {
 						AILog.Info("Route ok");
-						local line = TruckLine(ind_from, station_from, null, station_to, this._BuildDepot(station_from), cargo);
+						local line = TruckLine(ind_from, station_from, null, station_to, depot, cargo);
 						this._routes.push(line);
 						this._unbuild_routes[cargo].rawdelete(ind_from);
 						this._goods_drop_towns.AddItem(town, 1);
@@ -458,15 +491,31 @@ function TruckLineManager::_GetSortedOffsets(tile, goal)
 	local goal_y = AIMap.GetTileY(goal);
 	if (abs(tile_x - goal_x) < abs(tile_y - goal_y)) {
 		if (tile_y < goal_y) {
-			return [AIMap.GetMapSizeX(), -1, 1, -AIMap.GetMapSizeX()];
+			if (tile_x < goal_x) {
+				return [AIMap.GetMapSizeX(), 1, -1, -AIMap.GetMapSizeX()];
+			} else {
+				return [AIMap.GetMapSizeX(), -1, 1, -AIMap.GetMapSizeX()];
+			}
 		} else {
-			return [-AIMap.GetMapSizeX(), -1, 1, AIMap.GetMapSizeX()];
+			if (tile_x < goal_x) {
+				return [-AIMap.GetMapSizeX(), 1, -1, AIMap.GetMapSizeX()];
+			} else {
+				return [-AIMap.GetMapSizeX(), -1, 1, AIMap.GetMapSizeX()];
+			}
 		}
 	} else {
 		if (tile_x < goal_x) {
-			return [1, -AIMap.GetMapSizeX(), AIMap.GetMapSizeX(), -1];
+			if (tile_y < goal_y) {
+				return [1, AIMap.GetMapSizeX(), -AIMap.GetMapSizeX(), -1];
+			} else {
+				return [1, AIMap.GetMapSizeX(), -AIMap.GetMapSizeX(), -1];
+			}
 		} else {
-			return [-1, -AIMap.GetMapSizeX(), AIMap.GetMapSizeX(), 1];
+			if (tile_y < goal_y) {
+				return [-1, -AIMap.GetMapSizeX(), AIMap.GetMapSizeX(), 1];
+			} else {
+				return [-1, -AIMap.GetMapSizeX(), AIMap.GetMapSizeX(), 1];
+			}
 		}
 	}
 }

@@ -30,7 +30,7 @@ class BusLine
 		local distance = AIMap.DistanceManhattan(loc_from, loc_to);
 		local acceptance = AITile.GetCargoAcceptance(loc_from, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
 		acceptance += AITile.GetCargoAcceptance(loc_to, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_BUS_STOP));
-		this.BuildVehicles(max(3, min(20, 2 + ((acceptance / 35) * (distance / 50)).tointeger())));
+		this.BuildVehicles(2);
 	}
 
 	/**
@@ -112,15 +112,15 @@ function BusLine::CheckVehicles()
 	this._vehicle_list.KeepValue(1);
 	local valid_count = this._vehicle_list.Count();
 	if (valid_count < orig_count) {
-		this._station_from.RemoveTrucks(orig_count - valid_count);
-		this._station_to.RemoveTrucks(orig_count - valid_count);
+		this._station_from.RemoveBusses(orig_count - valid_count);
+		this._station_to.RemoveBusses(orig_count - valid_count);
 	}
 	local list = AIList();
 	list.AddList(this._vehicle_list);
 	list.Valuate(AIVehicle.GetAge);
-	list.KeepAboveValue(700);
+	list.KeepAboveValue(720);
 	list.Valuate(AIVehicle.GetProfitLastYear);
-	list.KeepBelowValue(0);
+	list.KeepBelowValue(500);
 
 	foreach (v, profit in list) {
 		this._vehicle_list.RemoveItem(v);
@@ -181,8 +181,12 @@ function BusLine::CheckVehicles()
 		}
 		local rating = min(AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo),
 		                   AIStation.GetCargoRating(this._station_to.GetStationID(), this._cargo));
-		if (rating < 60 && num_young_vehicles == 0 && num_new == 0) num_new = 1;
-		if (rating < 45 && num_young_vehicles + num_new <= 1) num_new++;
+		local target_rating = 60;
+		if (AITown.HasStatue(AIStation.GetNearestTown(this._station_from.GetStationID()))) target_rating += 10;
+		local veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
+		if (veh_speed > 85) target_rating += min(17, (veh_speed - 85) / 4);
+		if (rating < target_rating && num_young_vehicles == 0 && num_new == 0) num_new = 1;
+		if (rating < target_rating - 20 && num_young_vehicles + num_new <= 1) num_new++;
 		if (num_new > 0) this.BuildVehicles(num_new);
 	}
 }

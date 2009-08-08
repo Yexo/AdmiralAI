@@ -26,7 +26,7 @@ class RPF
 		this._cost_bridge_per_tile = 150;
 		this._cost_tunnel_per_tile = 120;
 		this._cost_coast = 20;
-		this._max_bridge_length = 10;
+		this._max_bridge_length = 20;
 		this._max_tunnel_length = 20;
 		this._pathfinder = AyStar(this._Cost, this._Estimate, this._Neighbours, this._CheckDirection, this, this, this, this);
 
@@ -69,6 +69,8 @@ class RPF
 	_max_bridge_length = null;     ///< The maximum length of a bridge that will be build.
 	_max_tunnel_length = null;     ///< The maximum length of a tunnel that will be build.
 	_running = null;               ///< Used to prevent changing the costs during pathfinding.
+	_goal_estimate_tile = null;
+	_max_path_length = null;
 }
 
 /**
@@ -128,6 +130,8 @@ function RPF::InitializePath(sources, goals)
 	foreach (node in sources) {
 		nsources.push([node, 0xFF]);
 	}
+	this._max_path_length = max(10, 1.5 * AIMap.DistanceManhattan(sources[0], goals[0]));
+	this._goal_estimate_tile = goals[0];
 	this._pathfinder.InitializePath(nsources, goals);
 }
 
@@ -232,6 +236,7 @@ function RPF::_Neighbours(path, cur_node, self)
 {
 	/* self._max_cost is the maximum path cost, if we go over it, the path isn't valid. */
 	if (path.GetCost() >= self._max_cost) return [];
+	if (path.GetLength() + AIMap.DistanceManhattan(cur_node, self._goal_estimate_tile) > self._max_path_length) return [];
 	local tiles = [];
 
 	/* Check if the current tile is part of a bridge or tunnel. */
@@ -287,7 +292,10 @@ function RPF::_CheckDirection(tile, existing_direction, new_direction, self)
 
 function RPF::_GetDirection(from, to, is_bridge)
 {
-	if (!is_bridge && AITile.GetSlope(to) == AITile.SLOPE_FLAT) return 0xFF;
+	if (!is_bridge && AdmiralAI.GetRealHeight(to) >= AdmiralAI.GetRealHeight(from)) {
+		if (abs(from - to) == 1) return 3;
+		if (abs(from - to) == AIMap.GetMapSizeX()) return 12;
+	}
 	if (from - to == 1) return 1;
 	if (from - to == -1) return 2;
 	if (from - to == AIMap.GetMapSizeX()) return 4;

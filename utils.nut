@@ -110,3 +110,15 @@ function Utils::AIListToString(list)
 	ret += "]";
 	return ret;
 }
+
+function Utils::IsNearlyFlatTile(tile)
+{
+	local slope = AITile.GetSlope(tile);
+	return slope == AITile.SLOPE_FLAT || slope == AITile.SLOPE_NWS || slope == AITile.SLOPE_WSE ||
+			slope == AITile.SLOPE_SEN || slope == AITile.SLOPE_ENW;
+}
+
+function Utils::VehicleManhattanDistanceToTile(vehicle, tile)
+{
+	return AIMap.DistanceManhattan(AIVehicle.GetLocation(vehicle), tile);
+}
