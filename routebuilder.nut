@@ -51,6 +51,7 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier)
 {
 	local num_retries = 3;
+	if (sources.len() == 0 || goals.len() == 0) return -1;
 
 	while (num_retries > 0) {
 		num_retries--;

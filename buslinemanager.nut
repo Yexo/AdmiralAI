@@ -107,6 +107,11 @@ class BusLineManager
 	_last_search_finished = null;
 };
 
+function BusLineManager::GetTownManagerTable()
+{
+	return this._town_managers;
+}
+
 function BusLineManager::Save()
 {
 	local data = {}

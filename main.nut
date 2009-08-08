@@ -11,6 +11,7 @@ require("trucklinemanager.nut");
 require("truckline.nut");
 require("stationmanager.nut");
 require("buslinemanager.nut");
+require("aircraftmanager.nut");
 require("busline.nut");
 require("townmanager.nut");
 
@@ -34,6 +35,8 @@ require("townmanager.nut");
  *  - When building a truck station near a city, connecting it with the road may fail. Either demolish some tiles
  *     or just pathfind from station to other industry, so even though the first part was difficult, a route is build.
  *  - Upon loading a game, scan all vehicles and set autoreplace for those types we don't choose as new engine_id.
+ *  - If building a truck station near an industry failed, don't try again. Better yet: pathfind first, if succesfull
+ *     try to build a truck station and connect it with the endpoint, if twice successfull (both stations), then build the route
  */
 
 /**
@@ -46,6 +49,7 @@ class AdmiralAI extends AIController
 	constructor() {
 		this._truck_manager = TruckLineManager();
 		this._bus_manager = BusLineManager();
+		this._aircraft_manager = AircraftManager(this._bus_manager.GetTownManagerTable());
 		this._pending_events = [];
 
 		if (::vehicles_to_sell == null) {
@@ -159,6 +163,7 @@ class AdmiralAI extends AIController
 
 	_truck_manager = null; ///< The TruckLineManager managing all truck lines.
 	_bus_manager = null;   ///< The BusLineManager managing all bus lines.
+	_aircraft_manager = null; ///< The AircraftManager managing all air routes.
 	_pending_events = null; ///< An array containing [EventType, value] pairs of unhandles events.
 	_save_data = null;      ///< Cache of save data during load.
 };
@@ -320,16 +325,25 @@ function AdmiralAI::BuildDepot(roadtile)
 
 function AdmiralAI::AddSquare(tile_list, center_tile, radius)
 {
-	AdmiralAI.AddRectangleSafe(tile_list, center_tile, -radius, -radius, radius, radius);
+	AdmiralAI.AddRectangleSafe(tile_list, center_tile, radius, radius, radius, radius);
 }
 
 function AdmiralAI::AddRectangleSafe(tile_list, center_tile, x_min, y_min, x_plus, y_plus)
 {
 	local tile_x = AIMap.GetTileX(center_tile);
 	local tile_y = AIMap.GetTileY(center_tile);
-	local tile_from = AIMap.GetTileIndex(max(1, tile_x + x_min), max(1, tile_y + y_min));
+	local tile_from = AIMap.GetTileIndex(max(1, tile_x - x_min), max(1, tile_y - y_min));
 	local tile_to = AIMap.GetTileIndex(min(AIMap.GetMapSizeX() - 2, tile_x + x_plus), min(AIMap.GetMapSizeY() - 2, tile_y + y_plus));
 	tile_list.AddRectangle(tile_from, tile_to);
+}
+
+function AdmiralAI::RemoveRectangleSafe(tile_list, center_tile, x_min, y_min, x_plus, y_plus)
+{
+	local tile_x = AIMap.GetTileX(center_tile);
+	local tile_y = AIMap.GetTileY(center_tile);
+	local tile_from = AIMap.GetTileIndex(max(1, tile_x - x_min), max(1, tile_y - y_min));
+	local tile_to = AIMap.GetTileIndex(min(AIMap.GetMapSizeX() - 2, tile_x + x_plus), min(AIMap.GetMapSizeY() - 2, tile_y + y_plus));
+	tile_list.RemoveRectangle(tile_from, tile_to);
 }
 
 function AdmiralAI::HandleEvents()
@@ -363,7 +377,7 @@ function AdmiralAI::SendVehicleToSellToDepot()
 		if (!AIRoad.IsRoadDepotTile(AIOrder.GetOrderDestination(vehicle, AIOrder.CURRENT_ORDER))) {
 			if (!AIVehicle.SendVehicleToDepot(vehicle)) {
 				AIVehicle.ReverseVehicle(vehicle);
-				this.Sleep(50);
+				AIController.Sleep(50);
 				AIVehicle.SendVehicleToDepot(vehicle);
 			}
 		}
@@ -382,8 +396,10 @@ function AdmiralAI::Start()
 			AISign.RemoveSign(i);
 	}
 
-	Utils.SetCompanyName(Utils.RandomReorder(["AdmiralAI"]));
-	AILog.Info(AICompany.GetCompanyName(AICompany.MY_COMPANY) + " has just started!");
+	if (AICompany.GetCompanyName(AICompany.MY_COMPANY).find("AdmiralAI") == null) {
+		Utils.SetCompanyName(Utils.RandomReorder(["AdmiralAI"]));
+		AILog.Info(AICompany.GetCompanyName(AICompany.MY_COMPANY) + " has just started!");
+	}
 
 	if (!AIGameSettings.IsValid("vehicle.max_roadveh")) throw("vehicle.max_roadveh is not valid, please update!");
 	if (!AIGameSettings.IsValid("difficulty.vehicle_breakdowns")) throw("difficulty.vehicle_breakdowns is not valid, please update!");
@@ -403,6 +419,7 @@ function AdmiralAI::Start()
 
 	this._bus_manager.AfterLoad();
 	this._truck_manager.AfterLoad();
+	this._aircraft_manager.AfterLoad();
 	this._save_data = null;
 	AILog.Info("Loading done");
 
@@ -439,8 +456,17 @@ function AdmiralAI::Start()
 		this.GetMoney(200000);
 		local veh_list = AIVehicleList();
 		veh_list.Valuate(AIVehicle.GetVehicleType);
+		veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
+		if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_aircraft")) {
+			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 200000 && !need_vehicle_check) {
+				build_route = this._aircraft_manager.BuildNewRoute();
+			}
+		}
+		this.GetMoney(200000);
+		local veh_list = AIVehicleList();
+		veh_list.Valuate(AIVehicle.GetVehicleType);
 		veh_list.KeepValue(AIVehicle.VEHICLE_ROAD);
-		if (AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
+		if (!build_route && AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000 && !need_vehicle_check) {
 				if (build_busses) {
 					if (this.GetSetting("use_busses")) build_route = this._bus_manager.NewLineExistingRoad();

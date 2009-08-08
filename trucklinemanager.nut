@@ -593,7 +593,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 
 			if (transport_to_town) {
 				local town_list = AITownList();
-				town_list.RemoveList(this._goods_drop_towns);
+				//town_list.RemoveList(this._goods_drop_towns);
 				town_list.Valuate(AITown.GetPopulation);
 				town_list.KeepAboveValue(min_town_pop);
 				town_list.Valuate(AITown.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));

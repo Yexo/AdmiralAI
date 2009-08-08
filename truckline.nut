@@ -85,12 +85,10 @@ function TruckLine::CloseRoute()
 	if (!this._valid) return;
 	AILog.Warning("Closing down cargo route");
 	this.UpdateVehicleList();
-	foreach (vehicle, dummy in this._vehicle_list) {
-		AIVehicle.SendVehicleToDepot(vehicle);
-		::vehicles_to_sell.AddItem(vehicle, 0);
-		this._station_from.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-		this._station_to.RemoveTrucks(1, this._distance, AIEngine.GetMaxSpeed(this._engine_id));
-	}
+	::vehicles_to_sell.AddList(this._vehicle_list);
+	this._station_from.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+	this._station_to.RemoveTrucks(this._vehicle_list.Count(), this._distance, AIEngine.GetMaxSpeed(this._engine_id));
+	AdmiralAI.SendVehicleToSellToDepot();
 	this._station_from.CloseStation();
 	this._station_to.CloseStation();
 	this._valid = false;
