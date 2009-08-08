@@ -29,6 +29,7 @@ class TrainManager
 	_ind_to_drop_stations = null;        ///< A table mapping IndustryIDs to StationManagers.
 	_routes = null;                      ///< An array containing all TruckLines build.
 	_platform_length = null;
+	_max_distance_new_route = null;      ///< The maximum length of a new train route.
 
 /* public: */
 
@@ -42,6 +43,7 @@ class TrainManager
 		this._ind_to_drop_stations = {};
 		this._routes = [];
 		this._platform_length = 4;
+		this._max_distance_new_route = 100;
 		this._InitializeUnbuildRoutes();
 	}
 
@@ -67,7 +69,7 @@ class TrainManager
 	 * Build a new cargo route,.
 	 * @return True if and only if a new route was created.
 	 */
-	function BuildNewLine();
+	function BuildNewRoute();
 
 /* private: */
 
@@ -123,6 +125,8 @@ function TrainManager::Save()
 		if (!route._valid) continue;
 		data.routes.push([route._ind_from, route._station_from.GetStationID(), route._ind_to, route._station_to.GetStationID(), route._depot_tiles, route._cargo, route._platform_length, route._rail_type]);
 	}
+
+	data.rawset("max_distance_new_route", this._max_distance_new_route);
 
 	return data;
 }
@@ -188,6 +192,10 @@ function TrainManager::Load(data)
 				AILog.Error("CargoID " + route_array[5] + " not in unbuild_routes");
 			}
 		}
+	}
+
+	if (data.rawin("max_distance_new_route")) {
+		this._max_distance_new_route = data.rawget("max_distance_new_route");
 	}
 }
 
@@ -293,6 +301,7 @@ function TrainManager::BuildNewRoute()
 		if (!this._unbuild_routes.rawin(cargo)) continue;
 
 		rail_type_list.Valuate(TrainManager.RailTypeValuator, cargo);
+		rail_type_list.RemoveValue(-1);
 		rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 		/* If there is no railtype with a possible train, try another cargo type. */
 		if (rail_type_list.Count() == 0) continue;
@@ -316,7 +325,7 @@ function TrainManager::BuildNewRoute()
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) < 180000) return false;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
-			ind_acc_list.KeepBetweenValue(70, 200);
+			ind_acc_list.KeepBetweenValue(50, min(this._max_distance_new_route, (AICompany.GetBankBalance(AICompany.MY_COMPANY) - 60000) / 700));
 			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local station_from = this._GetStationNearIndustry(ind_from, true, cargo, ind_to);
@@ -344,6 +353,7 @@ function TrainManager::BuildNewRoute()
 			}
 		}
 	}
+	this._max_distance_new_route = min(200, this._max_distance_new_route + 20);
 	return false;
 }
 

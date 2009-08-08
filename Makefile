@@ -1,7 +1,7 @@
 # Configuration
 AI_NAME = AdmiralAI
-AI_VERSION = 16
-FILES = COPYING *.nut
+AI_VERSION = 17
+FILES = COPYING *.nut rail/*.nut road/*.nut air/*.nut utils/*.nut
 # End of configuration
 
 NAME_VERSION = $(AI_NAME).$(AI_VERSION)

@@ -228,7 +228,7 @@ function AdmiralAI::Save()
 	foreach (veh, dummy in this.sell_vehicles) {
 		to_sell.push(veh);
 	}
-	data.rawset("admiralai_version", "16.4");
+	data.rawset("admiralai_version", "17");
 	data.rawset("vehicles_to_sell", to_sell);
 	data.rawset("stations_to_sell", this.sell_stations);
 	data.rawset("trucklinemanager", this._truck_manager.Save());
@@ -434,6 +434,24 @@ function AdmiralAI::TransportCargo(cargo, ind)
 	::main_instance._train_manager.TransportCargo(cargo, ind);
 }
 
+function AdmiralAI::UseVehicleType(vehicle_type)
+{
+	switch (vehicle_type) {
+		case "planes": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_AIR) && this.GetSetting("use_planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > 0;
+		case "trains": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_RAIL) && this.GetSetting("use_trains") && AIGameSettings.GetValue("vehicle.max_trains") > 0;
+		case "trucks": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_ROAD) && this.GetSetting("use_trucks") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
+		case "busses": return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_ROAD) && this.GetSetting("use_busses") && AIGameSettings.GetValue("vehicle.max_roadveh") > 0;
+		case "ships":  return !AIGameSettings.IsDisabledVehicleType(AIVehicle.VEHICLE_WATER) && this.GetSetting("use_ships") && AIGameSettings.GetValue("vehicle.max_ships") > 0;
+	}
+}
+
+function AdmiralAI::SomeVehicleTypeAvailable()
+{
+	return this.UseVehicleType("planes") || this.UseVehicleType("trains") ||
+		this.UseVehicleType("trucks") || this.UseVehicleType("busses");
+	/* TODO: add ships here as soon as support for them is implemented. */
+}
+
 function AdmiralAI::DoMaintenance()
 {
 	this.GetEvents();
@@ -475,8 +493,13 @@ function AdmiralAI::DoMaintenance()
 
 function AdmiralAI::Start()
 {
-	Utils_General.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "difficulty.vehicle_breakdowns",
-		"construction.build_on_slopes", "station.modified_catchment"]);
+	Utils_General.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "vehicle.max_ships",
+		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment"]);
+	if (!this.SomeVehicleTypeAvailable()) {
+		AILog.Error("No supported vehicle type is available.");
+		AILog.Error("Quitting.");
+		return;
+	}
 	main_instance = this;
 	local start_tick = this.GetTick();
 
@@ -532,14 +555,14 @@ function AdmiralAI::Start()
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
-			if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_planes")) {
+			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count()) {
 				build_route = this._aircraft_manager.BuildNewRoute();
 				Utils_General.GetMoney(200000);
 			}
 			veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
-			if (AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count() && this.GetSetting("use_trains")) {
+			if (this.UseVehicleType("trains") && AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count()) {
 				build_route = this._train_manager.BuildNewRoute() || build_route;
 			}
 			build_road_route = 3;
@@ -547,11 +570,11 @@ function AdmiralAI::Start()
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VEHICLE_RAIL);
-			local new_train_route = AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count() && this.GetSetting("use_trains");
+			local new_train_route = this.UseVehicleType("trains") && AIGameSettings.GetValue("vehicle.max_trains") * 0.9 > veh_list.Count();
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VEHICLE_AIR);
-			if (AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count() && this.GetSetting("use_planes")) {
+			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count()) {
 				if (new_train_route && AIBase.RandRange(2) == 0) {
 					build_route = this._train_manager.BuildNewRoute();
 				} else {
@@ -569,20 +592,20 @@ function AdmiralAI::Start()
 		if (!build_route && build_road_route > 0 && AIGameSettings.GetValue("vehicle.max_roadveh") * 0.9 > veh_list.Count()) {
 			if (AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 30000) {
 				if (build_busses) {
-					if (this.GetSetting("use_busses")) build_route = this._bus_manager.NewLineExistingRoad();
-					if (this.GetSetting("use_trucks") && !build_route) build_route = this._truck_manager.NewLineExistingRoad();
+					if (this.UseVehicleType("busses")) build_route = this._bus_manager.NewLineExistingRoad();
+					if (this.UseVehicleType("trucks") && !build_route) build_route = this._truck_manager.NewLineExistingRoad();
 				} else {
-					if (this.GetSetting("use_trucks")) build_route = this._truck_manager.NewLineExistingRoad();
-					if (this.GetSetting("use_busses") && !build_route) build_route = this._bus_manager.NewLineExistingRoad();
+					if (this.UseVehicleType("trucks")) build_route = this._truck_manager.NewLineExistingRoad();
+					if (this.UseVehicleType("busses") && !build_route) build_route = this._bus_manager.NewLineExistingRoad();
 				}
 			}
 			if (!build_route && AICompany.GetBankBalance(AICompany.MY_COMPANY) >= 80000) {
 				if (build_busses) {
-					if (this.GetSetting("use_busses")) build_route = this._bus_manager.BuildNewLine();
-					if (this.GetSetting("use_trucks") && !build_route) build_route = this._truck_manager.BuildNewLine();
+					if (this.UseVehicleType("busses")) build_route = this._bus_manager.BuildNewLine();
+					if (this.UseVehicleType("trucks") && !build_route) build_route = this._truck_manager.BuildNewLine();
 				} else {
-					if (this.GetSetting("use_trucks")) build_route = this._truck_manager.BuildNewLine();
-					if (this.GetSetting("use_busses") && !build_route) build_route = this._bus_manager.BuildNewLine();
+					if (this.UseVehicleType("trucks")) build_route = this._truck_manager.BuildNewLine();
+					if (this.UseVehicleType("busses") && !build_route) build_route = this._bus_manager.BuildNewLine();
 				}
 			}
 			// By commenting the next line out AdmiralAI will first build truck routes before it starts on bus routes.

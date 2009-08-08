@@ -28,7 +28,9 @@ class TruckLineManager
 	_ind_to_pickup_stations = null;      ///< A table mapping IndustryIDs to StationManagers. If an IndustryID is not in this list, we haven't build a pickup station there yet.
 	_ind_to_drop_station = null;         ///< A table mapping IndustryIDs to StationManagers.
 	_routes = null;                      ///< An array containing all TruckLines build.
+	_min_distance = null;                ///< The minimum distance between industries.
 	_max_distance_existing_route = null; ///< The maximum distance between industries where we'll still check if they are alerady connected.
+	_max_distance_new_route = null;      ///< The maximum distance between industries for a new route.
 	_skip_cargo = null;                  ///< Skip this amount of CargoIDs in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
 	_skip_ind_from = null;               ///< Skip this amount of source industries in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
 	_skip_ind_to = null;                 ///< Skip this amount of goal industries in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
@@ -45,7 +47,9 @@ class TruckLineManager
 		this._ind_to_pickup_stations = {};
 		this._ind_to_drop_station = {};
 		this._routes = [];
-		this._max_distance_existing_route = 100;
+		this._min_distance = 35;
+		this._max_distance_existing_route = 75;
+		this._max_distance_new_route = 75;
 		this._skip_cargo = 0;
 		this._skip_ind_from = 0;
 		this._skip_ind_to = 0;
@@ -317,7 +321,7 @@ function TruckLineManager::BuildNewLine()
 			if (last_production > 80 && AIIndustry.GetLastMonthTransported(ind_from, cargo) * 100 / last_production > 65) continue;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
-			ind_acc_list.KeepBetweenValue(50, 250);
+			ind_acc_list.KeepBetweenValue(this._min_distance, this._max_distance_new_route);
 			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local list_from = AITileList();
@@ -377,6 +381,7 @@ function TruckLineManager::BuildNewLine()
 		}
 	}
 	AIRoad.SetCurrentRoadType(last_road_type);
+	this._max_distance_new_route = min(200, _max_distance_new_route + 25);
 	return false;
 }
 
@@ -587,7 +592,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			}
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
-			ind_acc_list.KeepBetweenValue(50, this._max_distance_existing_route);
+			ind_acc_list.KeepBetweenValue(this._min_distance, this._max_distance_existing_route);
 			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 			foreach (ind_to, dummy in ind_acc_list) {
 				if (ind_to_skipped < this._skip_ind_to && do_skip) {
@@ -678,7 +683,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		do_skip = false;
 	}
 	AILog.Info("Full industry search done!");
-	this._max_distance_existing_route = min(400, this._max_distance_existing_route + 50);
+	this._max_distance_existing_route = min(200, this._max_distance_existing_route + 25);
 	this._skip_ind_from = 0;
 	this._skip_ind_to = 0;
 	this._skip_cargo = 0;
