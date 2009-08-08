@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file trainline.nut Implementation of TrainLine. */
@@ -173,7 +173,7 @@ function TrainLine::GetIndustryFrom()
 function TrainLine::GetIndustryTo()
 {
 	if (!this._valid) return -1;
-	return this._ind_to;_depot_tiles
+	return this._ind_to;
 }
 
 function TrainLine::CloseRoute()
@@ -200,28 +200,39 @@ function TrainLine::BuildVehicles(num)
 
 	for (local i = 0; i < num; i++) {
 		local depot = this._depot_tiles[0] == null ? this._depot_tiles[1] : this._depot_tiles[0];
+		Utils_General.GetMoney(AIEngine.GetPrice(this._engine_id));
 		local v = AIVehicle.BuildVehicle(depot, this._engine_id);
 		if (!AIVehicle.IsValidVehicle(v)) {
 			if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 			AILog.Warning("Error building train engine: " + AIError.GetLastErrorString());
 			return true;
 		}
+		/* We don't know how may wagons we need, so reserve a bit too much.
+		 * Nothing happens yet if we don't have enough money. */
+		Utils_General.GetMoney(AIEngine.GetPrice(this._wagon_engine_id) * 20);
 		local last_length = AIVehicle.GetLength(v);
 		while (last_length <= 16 * this._platform_length) {
+			if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) < AIEngine.GetPrice(this._wagon_engine_id)) {
+				/* We don't have enough money, try to loan some and hope we can. */
+				Utils_General.GetMoney(AIEngine.GetPrice(this._wagon_engine_id) * 5);
+			}
 			local wagon_id = AIVehicle.BuildVehicle(depot, this._wagon_engine_id);
 			/* Check if the wagon was already added to the engine. */
 			if (AIVehicle.GetLength(v) == last_length) {
+				/* The wagon_id is invalid. This is not because it was
+				 * automatically added to the first engine (checked
+				 * above), so it must be because some eror occured. */
 				if (!AIVehicle.IsValidVehicle(wagon_id)) {
 					local cash_shortage = AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH;
 					AILog.Warning("Error building train wagon: " + AIError.GetLastErrorString());
 					AIVehicle.SellVehicle(v);
 					return !cash_shortage;
 				}
-				AIVehicle.MoveWagon(wagon_id, 0, false, v, 0);
+				AIVehicle.MoveWagon(wagon_id, 0, v, 0);
 			}
 			last_length = AIVehicle.GetLength(v);
 		}
-		AIVehicle.SellWagon(v, 1, false);
+		AIVehicle.SellWagon(v, 1);
 		if (!AIVehicle.RefitVehicle(v, this._cargo)) {
 			local cash_shortage = AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH;
 			AIVehicle.SellVehicle(v);
@@ -432,7 +443,7 @@ function TrainLine::CheckVehicles()
 
 	this._FindEngineID();
 	if (this._engine_id != null && this._wagon_engine_id != null) {
-		if (this._vehicle_list.Count() < 2) return !this.BuildVehicles(2 - this._vehicle_list.Count());
+		if (this._vehicle_list.Count() < 1) return !this.BuildVehicles(2 - this._vehicle_list.Count());
 		local cargo_waiting = AIStation.GetCargoWaiting(this._station_from.GetStationID(), this._cargo);
 		list = AIList();
 		list.AddList(this._vehicle_list);
@@ -484,9 +495,11 @@ function TrainLine::_UpdateVehicleList()
 	this._vehicle_list.RemoveList(::main_instance.sell_vehicles);
 }
 
-function TrainLine::_SortEngineList(engine_id)
+function TrainLine::_SortEngineList(engine_id, max_wagon_speed, max_engine_price)
 {
-	return AIEngine.GetMaxSpeed(engine_id);
+	local max_speed = min(AIEngine.GetMaxSpeed(engine_id), max_wagon_speed);
+	local factor = max_speed - max_speed * AIEngine.GetPrice(engine_id) / max_engine_price;
+	return max_speed + factor;
 }
 
 function TrainLine::_SortEngineWagonList(engine_id)
@@ -496,25 +509,6 @@ function TrainLine::_SortEngineWagonList(engine_id)
 
 function TrainLine::_FindEngineID()
 {
-	this._UpdateVehicleList();
-	local list = AIEngineList(AIVehicle.VT_RAIL);
-	list.Valuate(AIEngine.HasPowerOnRail, this._rail_type);
-	list.KeepValue(1);
-	list.Valuate(AIEngine.IsWagon);
-	list.KeepValue(0);
-	list.Valuate(AIEngine.CanPullCargo, this._cargo);
-	list.KeepValue(1);
-	Utils_Valuator.Valuate(list, this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
-	local new_engine_id = null;
-	if (list.Count() != 0) {
-		new_engine_id = list.Begin();
-	}
-	if (this._engine_id != null && new_engine_id != null && this._engine_id != new_engine_id) {
-		this._AutoReplace(this._engine_id, new_engine_id);
-	}
-	this._engine_id = new_engine_id;
-
 	local list = AIEngineList(AIVehicle.VT_RAIL);
 	list.Valuate(AIEngine.CanRunOnRail, this._rail_type);
 	list.KeepValue(1);
@@ -525,4 +519,31 @@ function TrainLine::_FindEngineID()
 	Utils_Valuator.Valuate(list, this._SortEngineWagonList);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
 	this._wagon_engine_id = list.Count() == 0 ? null : list.Begin();
+	if (this._wagon_engine_id == null) {
+		this._engine_id = null;
+		return;
+	}
+	local wagon_speed = AIEngine.GetMaxSpeed(this._wagon_engine_id);
+	if (AIGameSettings.GetValue("vehicle.wagon_speed_limits") || wagon_speed == 0) wagon_speed = 65536;
+
+	this._UpdateVehicleList();
+	local list = AIEngineList(AIVehicle.VT_RAIL);
+	list.Valuate(AIEngine.HasPowerOnRail, this._rail_type);
+	list.KeepValue(1);
+	list.Valuate(AIEngine.IsWagon);
+	list.KeepValue(0);
+	list.Valuate(AIEngine.CanPullCargo, this._cargo);
+	list.KeepValue(1);
+	local max_price = 0;
+	foreach (engine, dummy in list) {
+		max_price = max(max_price, AIEngine.GetPrice(engine));
+	}
+	Utils_Valuator.Valuate(list, this._SortEngineList, wagon_speed, max_price);
+	list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	local new_engine_id = list.Begin();
+	if (this._engine_id != null && this._engine_id != new_engine_id) {
+		this._AutoReplace(this._engine_id, new_engine_id);
+	}
+	this._engine_id = new_engine_id;
+
 }

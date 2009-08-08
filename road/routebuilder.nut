@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file routebuilder.nut Some road route building functions. */
@@ -47,6 +47,12 @@ class RouteBuilder
 	 *  - -2 If the AI didn't have enough money to build the route.
 	 */
 	static function BuildRoadRoute(pf, sources, goals);
+
+	/**
+	 * Remove a road untill the road splits.
+	 * @param tile The road tile to start.
+	 */
+	static function DeleteDeadEnd(tile);
 };
 
 function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
@@ -67,7 +73,7 @@ function RouteBuilder::BuildRoadRouteFromStation(station, station_type, goals)
 	return RouteBuilder.BuildRoadRoute(RPF(), sources, goals, 2, 10);
 }
 
-function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier, max_length_offset, ignored_tiles = [])
+function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier, max_length_offset, ignored_tiles = [], endpoints = [])
 {
 	local num_retries = 3;
 	if (sources.len() == 0 || goals.len() == 0) return -1;
@@ -81,7 +87,7 @@ function RouteBuilder::BuildRoadRoute(pf, sources, goals, max_length_multiplier,
 			return -1;
 		}
 		if (RouteBuilder.TestBuildPath(path)) {
-			if (RouteBuilder.BuildPath(path)) return 0;
+			if (RouteBuilder.BuildPath(path, endpoints)) return 0;
 		}
 
 		AILog.Info("Building a route failed, but pathfinding was ok. Retrying " + num_retries);
@@ -95,12 +101,14 @@ function RouteBuilder::TestBuildPath(path)
 	return RouteBuilder.BuildPath(path);
 }
 
-function RouteBuilder::BuildPath(path)
+function RouteBuilder::BuildPath(path, endpoints = [])
 {
 	local route_build = false;
+	endpoints.append(path.GetTile());
 	while (path != null) {
 		local par = path.GetParent();
 		if (par == null) {
+			endpoints.append(path.GetTile());
 			route_build = true;
 			break;
 		}
@@ -187,4 +195,21 @@ function RouteBuilder::_HandleBridgeBuildError(from, to)
 			return true;
 	}
 	return false;
+}
+
+function RouteBuilder::DeleteDeadEnd(tile)
+{
+	local offsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
+	                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0)];
+	for (local num_removed = 0; num_removed < 10; num_removed++) {
+		local next_tile = null;
+		foreach (offset in offsets) {
+			if (AIRoad.AreRoadTilesConnected(tile, tile + offset) || AIRoad.AreRoadTilesConnected(tile + offset, tile)) {
+				if (next_tile != null) return;
+				next_tile = tile + offset;
+			}
+		}
+		if (!AIRoad.RemoveRoad(tile, next_tile)) return;
+		tile = next_tile;
+	}
 }

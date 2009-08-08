@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file stationmanager.nut Implementation of StationManager. */
@@ -154,6 +154,29 @@ class StationManager
 	 */
 	function GetPoints(speed, distance);
 };
+
+function StationManager::Save()
+{
+	local data = {
+		station_id = this._station_id,
+		truck_points = this._truck_points,
+		bus_points = this._bus_points,
+		is_drop_station = this._is_drop_station,
+		rail_type = this._rail_type,
+		platform_length = this._platform_length
+	};
+	return data
+}
+
+function StationManager::Load(data)
+{
+	this._station_id = data["station_id"];
+	this._truck_points = data["truck_points"];
+	this._bus_points = data["bus_points"];
+	this._is_drop_station = data["is_drop_station"]
+	this._rail_type = data["rail_type"];
+	this._platform_length = data["platform_length"];
+}
 
 function StationManager::SetCargoDrop(is_drop_station)
 {
@@ -368,7 +391,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 							AITile.LowerTile(tile, AITile.GetSlope(tile));
 						}
 					}
-					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
+					if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_JOIN_ADJACENT)) continue;
 					front_tiles.Valuate(AIMap.DistanceManhattan, tile + offset);
 					local min_distance = front_tiles.GetValue(front_tiles.Begin());
 					if (min_distance < best_min_distance) {
@@ -381,7 +404,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 		}
 		if (best_min_distance == 999) break;
 		if (!AIRoad.BuildRoad(best_tile, best_front)) return;
-		if (!AIRoad.BuildRoadStation(best_tile, best_front, true, false, true)) return;
+		if (!AIRoad.BuildRoadStation(best_tile, best_front, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_JOIN_ADJACENT)) return;
 		front_tiles.AddTile(best_front);
 		foreach (offset in diagoffsets) {
 			if (AIRoad.IsRoadTile(best_tile + offset) || (AITile.GetOwner(best_tile + offset) >= AICompany.COMPANY_FIRST &&

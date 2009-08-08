@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file townmanager.nut Implementation of TownManager. */
@@ -243,7 +243,7 @@ function TownManager::PlaceAirport(tile, type, height)
 		this.ImproveTownRating(AITown.TOWN_RATING_POOR);
 	}
 	Utils_General.GetMoney(100000);
-	local succeeded =  AIAirport.BuildAirport(tile, type, false);
+	local succeeded =  AIAirport.BuildAirport(tile, type, AIStation.STATION_NEW);
 	if (succeeded) return 0;
 	if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return -1;
 	AILog.Error("Airport building failed: " + AIError.GetLastErrorString());
@@ -254,7 +254,7 @@ function TownManager::PlaceAirport(tile, type, height)
 function TownManager::TryBuildAirport(types)
 {
 	foreach (type in types) {
-		if (!AIAirport.AirportAvailable(type)) continue;
+		if (!AIAirport.IsValidAirportType(type)) continue;
 		/* Since checking all tiles takes a lot of time, but not so much
 		 * ticks, sleep a tick to prevent hickups. */
 		::main_instance.Sleep(1);
@@ -262,7 +262,7 @@ function TownManager::TryBuildAirport(types)
 		Utils_Tile.AddSquare(tile_list, AITown.GetLocation(this._town_id), 20 + AITown.GetPopulation(this._town_id) / 3000);
 		tile_list.Valuate(AITile.GetCargoAcceptance, ::main_instance._passenger_cargo_id, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type), AIAirport.GetAirportCoverageRadius(type));
 		tile_list.KeepAboveValue(AircraftManager.MinimumPassengerAcceptance(type));
-		tile_list.Valuate(AITile.GetClosestTown);
+		tile_list.Valuate(AIAirport.GetNearestTown, type);
 		tile_list.KeepValue(this._town_id);
 		tile_list.Valuate(AIAirport.GetNoiseLevelIncrease, type);
 		tile_list.KeepBelowValue(AITown.GetAllowedNoise(this._town_id) + 1);
@@ -366,9 +366,9 @@ function TownManager::CanBuildDrivethroughStop(tile)
 	local test = AITestMode();
 
 	if (AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(0, 1)) || AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(0, -1))) {
-		if (AIRoad.BuildRoadStation(tile, tile + AIMap.GetTileIndex(0, 1), false, true, false)) return tile + AIMap.GetTileIndex(0, 1);
+		if (AIRoad.BuildDriveThroughRoadStation(tile, tile + AIMap.GetTileIndex(0, 1), AIRoad.ROADVEHTYPE_BUS, AIStation.STATION_NEW)) return tile + AIMap.GetTileIndex(0, 1);
 	} else if (AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(1, 0)) || AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(-1, 0))) {
-		if (AIRoad.BuildRoadStation(tile, tile + AIMap.GetTileIndex(1, 0), false, true, false)) return tile + AIMap.GetTileIndex(1, 0);
+		if (AIRoad.BuildDriveThroughRoadStation(tile, tile + AIMap.GetTileIndex(1, 0), AIRoad.ROADVEHTYPE_BUS, AIStation.STATION_NEW)) return tile + AIMap.GetTileIndex(1, 0);
 	}
 	return 0;
 }
@@ -390,7 +390,7 @@ function TownManager::GetNeighbourRoadCount(tile)
 	return num;
 }
 
-function TownManager::GetStation()
+function TownManager::GetStation(force_dtrs)
 {
 	local town_center = AITown.GetLocation(this._town_id);
 	if (this._unused_stations.len() > 0) return this._unused_stations[0];
@@ -425,40 +425,55 @@ function TownManager::GetStation()
 	list.Valuate(TownManager.GetNeighbourRoadCount);
 	list.KeepAboveValue(0);
 
-	/* First try to build a drivethough road stop. */
-	local drivethrough_list = AIList();
-	drivethrough_list.AddList(list);
-	drivethrough_list.KeepBelowValue(3);
-	drivethrough_list.Valuate(AIMap.DistanceManhattan, town_center);
-	drivethrough_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
-	foreach (tile, d in drivethrough_list) {
-		local front_tile = TownManager.CanBuildDrivethroughStop(tile);
-		if (front_tile <= 0) continue;
-		local back_tile = tile + (tile - front_tile);
-		if (!(AIRoad.AreRoadTilesConnected(front_tile, tile) && AIRoad.AreRoadTilesConnected(tile, back_tile))) {
-			if (!AIRoad.BuildRoad(front_tile, back_tile)) continue;
-		}
-		if (RouteFinder.FindRouteBetweenRects(front_tile, back_tile, 0, [tile]) == null) {
-			if (RouteBuilder.BuildRoadRoute(RPF(), [front_tile], [back_tile], 1, 20, [tile]) != 0) {
-				AILog.Warning("Front side could not be connected to back side");
+	if (force_dtrs || ::main_instance.GetSetting("build_bus_dtrs") || !this.SupportNormalStop(AIRoad.GetCurrentRoadType())) {
+		/* First try to build a drivethough road stop. */
+		local drivethrough_list = AIList();
+		drivethrough_list.AddList(list);
+		drivethrough_list.KeepBelowValue(3);
+		drivethrough_list.Valuate(Utils_Town.TileOnTownLayout, this._town_id, true);
+		drivethrough_list.KeepValue(1);
+		drivethrough_list.Valuate(AIMap.DistanceManhattan, town_center);
+		drivethrough_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
+		foreach (tile, d in drivethrough_list) {
+			local front_tile = TownManager.CanBuildDrivethroughStop(tile);
+			if (front_tile <= 0) continue;
+			local back_tile = tile + (tile - front_tile);
+			if (!(AIRoad.AreRoadTilesConnected(front_tile, tile) && AIRoad.AreRoadTilesConnected(tile, back_tile))) {
+				if (!AIRoad.BuildRoad(front_tile, back_tile)) continue;
+			}
+			if (RouteFinder.FindRouteBetweenRects(front_tile, back_tile, 0, [tile]) == null) {
+				local forbidden_tiles = [tile];
+				if (abs(tile - front_tile) == 1) {
+					if (!AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(0, 1))) forbidden_tiles.append(tile + AIMap.GetTileIndex(0, 1));
+					if (!AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(0, -1))) forbidden_tiles.append(tile + AIMap.GetTileIndex(0, -1));
+				} else {
+					if (!AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(1, 0))) forbidden_tiles.append(tile + AIMap.GetTileIndex(1, 0));
+					if (!AIRoad.IsRoadTile(tile + AIMap.GetTileIndex(-1, 0))) forbidden_tiles.append(tile + AIMap.GetTileIndex(-1, 0));
+				}
+				if (RouteBuilder.BuildRoadRoute(RPF([this._town_id]), [front_tile], [back_tile], 1, 20, forbidden_tiles) != 0) {
+					AILog.Warning("Front side could not be connected to back side");
+					AISign.BuildSign(tile, "!!!");
+					continue;
+				}
+			}
+			if (!AIRoad.BuildDriveThroughRoadStation(tile, front_tile, AIRoad.ROADVEHTYPE_BUS, AIStation.STATION_NEW)) {
+				AILog.Warning("Drivethrough stop could not be build");
 				continue;
 			}
+			local manager = StationManager(AIStation.GetStationID(tile));
+			this._unused_stations.push(manager);
+			return manager;
 		}
-		if (!AIRoad.BuildRoadStation(tile, front_tile, false, true, false)) {
-			AILog.Warning("Drivethrough stop could not be build");
-			continue;
-		}
-		local manager = StationManager(AIStation.GetStationID(tile));
-		this._unused_stations.push(manager);
-		return manager;
 	}
 
-	if (!this.SupportNormalStop(AIRoad.GetCurrentRoadType())) return null;
+	if (!this.SupportNormalStop(AIRoad.GetCurrentRoadType()) || force_dtrs) return null;
 
 	/* No drivethrough station could be build, so try a normal station. */
 	rating = AITown.GetRating(this._town_id, AICompany.COMPANY_SELF);
 	if (rating != AITown.TOWN_RATING_NONE && rating < AITown.TOWN_RATING_MEDIOCRE) return null;
 	list.Valuate(AIRoad.IsRoadTile);
+	list.KeepValue(0);
+	list.Valuate(Utils_Town.TileOnTownLayout, this._town_id, false);
 	list.KeepValue(0);
 	list.Valuate(AIMap.DistanceManhattan, town_center);
 	list.Sort(AIAbstractList.SORT_BY_VALUE, true);
@@ -469,15 +484,16 @@ function TownManager::GetStation()
 		foreach (offset in offsets) {
 			if (!AIRoad.IsRoadTile(t + offset)) continue;
 			if (!Utils_Tile.IsNearlyFlatTile(t + offset)) continue;
+			if (Utils_Tile.GetRealHeight(t) != Utils_Tile.GetRealHeight(t + offset)) continue;
 			if (RouteFinder.FindRouteBetweenRects(t + offset, AITown.GetLocation(this._town_id), 0) == null) continue;
 			if (!AITile.IsBuildable(t) && !AITile.DemolishTile(t)) continue;
 			{
 				local testmode = AITestMode();
 				if (!AIRoad.BuildRoad(t, t + offset)) continue;
-				if (!AIRoad.BuildRoadStation(t, t + offset, false, false, false)) continue;
+				if (!AIRoad.BuildRoadStation(t, t + offset, AIRoad.ROADVEHTYPE_BUS, AIStation.STATION_NEW)) continue;
 			}
 			if (!AIRoad.BuildRoad(t, t + offset)) continue;
-			if (!AIRoad.BuildRoadStation(t, t + offset, false, false, false)) continue;
+			if (!AIRoad.BuildRoadStation(t, t + offset, AIRoad.ROADVEHTYPE_BUS, AIStation.STATION_NEW)) continue;
 			local manager = StationManager(AIStation.GetStationID(t));
 			this._unused_stations.push(manager);
 			return manager;

@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file trucklinemanager.nut Implemenation of TruckLineManager. */
@@ -334,8 +334,9 @@ function TruckLineManager::BuildNewLine()
 				foreach (tile, d in list_to) array_to.push(tile);
 				AILog.Info("Trying to build truck route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
 				local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
+				local ends_to_delete = [];
 				if (route == null) {
-					local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.2, 20);
+					local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to, 1.2, 20, [], ends_to_delete);
 					if (ret != 0) {
 						AIRoad.SetCurrentRoadType(last_road_type);
 						return false;
@@ -344,7 +345,7 @@ function TruckLineManager::BuildNewLine()
 					if (route == null) {AILog.Warning("Couldn't find the route we just built"); continue; }
 					local route2 = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_to), AIIndustry.GetLocation(ind_from), 8);
 					if (route2 == null) {
-						ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.2, 20);
+						ret = RouteBuilder.BuildRoadRoute(RPF(), array_to, array_from, 1.2, 20, [], ends_to_delete);
 						if (ret != 0) {
 							AIRoad.SetCurrentRoadType(last_road_type);
 							return false;
@@ -361,7 +362,7 @@ function TruckLineManager::BuildNewLine()
 				local station_from = this._GetStationNearIndustry(ind_from, route[0], true, cargo);
 				if (station_from == null) break;
 				local ret1 = RouteBuilder.BuildRoadRouteFromStation(station_from.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[0]]);
-				if (ret1 != 0) break;;
+				if (ret1 != 0) break;
 				local depot = this._BuildDepot(station_from);
 				if (depot == null) break;
 				local station_to = this._GetStationNearIndustry(ind_to, route[1], false, cargo);
@@ -370,6 +371,7 @@ function TruckLineManager::BuildNewLine()
 				if (station_to.CanAddTrucks(5, AIIndustry.GetDistanceManhattanToTile(ind_from, AIIndustry.GetLocation(ind_to)), 80) < 5) continue;
 				local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_TRUCK_STOP, [route[1]]);
 				if (ret2 != 0) continue;
+				foreach (tile in ends_to_delete) RouteBuilder.DeleteDeadEnd(tile);
 				AILog.Info("Route ok");
 				local line = TruckLine(ind_from, station_from, ind_to, station_to, depot, cargo, false);
 				this._routes.push(line);
@@ -424,12 +426,12 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 			{
 				/* Test if we can build a station and the road to it. */
 				local test = AITestMode();
-				if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) {
+				if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) {
 					{
 						local exec = AIExecMode();
 						if (Utils_Tile.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
-					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
+					if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) continue;
 				}
 				if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			}
@@ -440,7 +442,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 			}
 			/* Build both the road and the station. If building fails, try another location.*/
 			if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
-			if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
+			if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) continue;
 			local station_id = AIStation.GetStationID(tile);
 			local manager = StationManager(station_id);
 			manager.SetCargoDrop(true);
@@ -502,12 +504,12 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 			{
 				/* Test if we can build a station and the road to it. */
 				local test = AITestMode();
-				if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) {
+				if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) {
 					{
 						local exec = AIExecMode();
 						if (Utils_Tile.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
-					if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
+					if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) continue;
 				}
 				if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			}
@@ -520,7 +522,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 			if (AITile.GetSlope(tile) != AITile.SLOPE_FLAT) AITile.RaiseTile(tile, AITile.GetComplementSlope(AITile.GetSlope(tile)));
 			/* Build both the road and the station. If building fails, try another location.*/
 			if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
-			if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false, true)) continue;
+			if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) continue;
 			local station_id = AIStation.GetStationID(tile);
 			local manager = StationManager(station_id);
 			manager.SetCargoDrop(!producing);

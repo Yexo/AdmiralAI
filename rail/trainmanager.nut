@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file trainmanager.nut Implemenation of TrainManager. */
@@ -551,7 +551,7 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 			}
 			/* If the town rating is too low and we can't fix it, return. */
 			if (!::main_instance._town_managers[AITile.GetClosestTown(tile)].ImproveTownRating(AITown.TOWN_RATING_POOR)) return null;
-			if (AIRail.BuildNewGRFRailStation(tile, trackdir, 2, platform_length + 2, false, cargo, ind_types[0], ind_types[1], distance, producing)) {
+			if (AIRail.BuildNewGRFRailStation(tile, trackdir, 2, platform_length + 2, AIStation.STATION_NEW, cargo, ind_types[0], ind_types[1], distance, producing)) {
 				local manager = StationManager(AIStation.GetStationID(tile));
 				manager.SetCargoDrop(!producing);
 				manager._rail_type = AIRail.GetCurrentRailType();

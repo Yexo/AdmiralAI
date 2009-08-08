@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file railpathfinder.nut A custom rail pathfinder. */
@@ -39,6 +39,7 @@ class RailPF
 	_max_bridge_length = null;     ///< The maximum length of a bridge that will be build.
 	_max_tunnel_length = null;     ///< The maximum length of a tunnel that will be build.
 	_goal_estimate_tile = null;
+	_reverse_signals = null;        ///< Don't pass through signals the right way, only trough the back of signals
 
 	cost = null;                   ///< Used to change the costs.
 	_running = null;
@@ -58,6 +59,7 @@ class RailPF
 		this._cost_road_tile = 1000;
 		this._max_bridge_length = 8;
 		this._max_tunnel_length = 10;
+		this._reverse_signals = false;
 		this._pathfinder = this._aystar_class(this._Cost, this._Estimate, this._Neighbours, this._CheckDirection, this, this, this, this);
 
 		this.cost = this.Cost(this);
@@ -124,6 +126,7 @@ class RailPF.Cost
 			case "road_tile":         this._main._cost_road_tile = val; break;
 			case "max_bridge_length": this._main._max_bridge_length = val; break;
 			case "max_tunnel_length": this._main._max_tunnel_length = val; break;
+			case "reverse_signals":   this._main._reverse_signals = val; break;
 			default: throw("the index '" + idx + "' does not exist");
 		}
 
@@ -145,6 +148,7 @@ class RailPF.Cost
 			case "road_tile":         return this._main._cost_road_tile;
 			case "max_bridge_length": return this._main._max_bridge_length;
 			case "max_tunnel_length": return this._main._max_tunnel_length;
+			case "reverse_signals":   return this._main._reverse_signals;
 			default: throw("the index '" + idx + "' does not exist");
 		}
 	}
@@ -296,7 +300,8 @@ function RailPF::_Neighbours(path, cur_node, self)
 		local path_check = path;
 		local can_split = path_check == null;
 		local i = 0;
-		if (AIRail.GetSignalType(path.GetParent().GetTile(), path.GetTile()) != AIRail.SIGNALTYPE_NONE) return [];
+		if (!self._reverse_signals && AIRail.GetSignalType(path.GetParent().GetTile(), path.GetTile()) != AIRail.SIGNALTYPE_NONE) return [];
+		if (self._reverse_signals && AIRail.GetSignalType(path.GetTile(), path.GetParent().GetTile()) != AIRail.SIGNALTYPE_NONE) return [];
 		if (AITile.IsStationTile(cur_node)) return []
 
 		for (local i = 0; path_check != null; i++) {

@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file railroutebuilder.nut Some rail route building functions. */
@@ -288,6 +288,13 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	if (sources.len() == 0) return -1;
 	if (goals.len() == 0) return -2;
 	ignored.Valuate(Utils_Valuator.ItemValuator);
+
+	local pf2 = RailPF();
+	pf2.cost.reverse_signals = true;
+	pf2.InitializePath(goals, sources, ignored);
+	local path2 = pf2.FindPath(200);
+	if (path2 == null) return -10;
+
 	pf.cost.max_cost = AIMap.DistanceManhattan(sources[0][0], goals[0][0]) * 1.5 * (pf.cost.tile + pf.cost.new_rail);
 	pf.InitializePath(sources, goals, ignored);
 	local path = pf.FindPath(200000);
@@ -384,6 +391,13 @@ function RailRouteBuilder::ConnectRailStations(station_a, station_b)
 	if (goals.len() == 0) return -1;
 	if (sources.len() == 0) return -2;
 	ignored.Valuate(Utils_Valuator.ItemValuator);
+
+	local pf2 = RailPF();
+	pf2.cost.reverse_signals = true;
+	pf2.InitializePath(goals, sources, ignored);
+	local path2 = pf2.FindPath(200);
+	if (path2 == null) return -11;
+
 	pf.cost.max_cost = AIMap.DistanceManhattan(sources[0][0], goals[0][0]) * 1.5 * (pf.cost.tile + pf.cost.new_rail);
 	pf.InitializePath(sources, goals, ignored);
 	local path = pf.FindPath(200000);

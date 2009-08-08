@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file rpf.nut A custom road pathfinder. */
@@ -45,12 +45,15 @@ class RPF
 	_running = null;               ///< Used to prevent changing the costs during pathfinding.
 	_goal_estimate_tile = null;
 	_max_path_length = null;
+	_towns = null;                 ///< An array with TownIDs of towns were we should try to keep the existing layout.
+	_town_distance = null;         ///< The maximum distance from the towns when applying a penalty.
+	_town_grid_cost = null;        ///< The cost for going outside the grid.
 
 /* public: */
 
 	cost = null;                   ///< Used to change the costs. An instance of RPF::Cost.
 
-	constructor()
+	constructor(towns = [])
 	{
 		this._max_cost = 10000000;
 		this._cost_tile = 100;
@@ -63,6 +66,9 @@ class RPF
 		this._max_bridge_length = 20;
 		this._max_tunnel_length = 20;
 		this._pathfinder = AyStar(this._Cost, this._Estimate, this._Neighbours, this._CheckDirection, this, this, this, this);
+		this._towns = towns;
+		this._town_distance = 25;
+		this._town_grid_cost = 250;
 
 		this.cost = this.Cost(this);
 		this._running = false;
@@ -191,7 +197,7 @@ function RPF::_Cost(path, new_tile, new_direction, self)
 	if (Utils_Tile.GetRealHeight(new_tile) == 0) return self._max_cost;
 	/* path == null means this is the first node of a path, so the cost is 0. */
 	if (path == null) return 0;
-	if (AITile.HasTransportType(new_tile, AITile.TRANSPORT_RAIL)) return self._max_cost;
+	if (AITile.HasTransportType(new_tile, AITile.TRANSPORT_RAIL) && !AITile.HasTransportType(new_tile, AITile.TRANSPORT_ROAD)) return self._max_cost;
 
 	local prev_tile = path.GetTile();
 
@@ -237,13 +243,19 @@ function RPF::_Cost(path, new_tile, new_direction, self)
 		cost += self._cost_slope;
 	}
 
-	if (!AIRoad.AreRoadTilesConnected(prev_tile, new_tile)) {
-		if (AIRoad.IsRoadTile(new_tile)) {
-			cost += self._cost_no_existing_road / 2;
-		} else {
-			cost += self._cost_no_existing_road;
+	if (!AIRoad.IsRoadTile(new_tile)) {
+		cost += self._cost_no_existing_road;
+		local closest_town = null;
+		local closest_distance = self._town_distance;
+		foreach (town in self._towns) {
+			if (AIMap.DistanceManhattan(new_tile, AITown.GetLocation(town)) < closest_distance) {
+				closest_distance = AIMap.DistanceManhattan(new_tile, AITown.GetLocation(town));
+				closest_town = town;
+			}
 		}
+		if (closest_town != null && !Utils_Town.TileOnTownLayout(new_tile, closest_town, true)) cost += self._town_grid_cost;
 	}
+
 
 	return path.GetCost() + cost;
 }

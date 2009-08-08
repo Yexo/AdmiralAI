@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008 Thijs Marinussen
+ * Copyright 2008-2009 Thijs Marinussen
  */
 
 /** @file main.nut Implementation of AdmiralAI, containing the main loop. */
@@ -28,6 +28,7 @@ require("utils/airport.nut");
 require("utils/array.nut");
 require("utils/general.nut");
 require("utils/tile.nut");
+require("utils/town.nut");
 require("utils/valuator.nut");
 
 require("stationmanager.nut");
@@ -174,7 +175,12 @@ class AdmiralAI extends AIController
 
 function AdmiralAI::GetStationManager(station_id)
 {
-	return this.station_table[station_id];
+	assert(AIStation.IsValidStation(station_id));
+
+	if (!this.station_table.rawin(station_id)) {
+		this.station_table.rawset(station_id, StationManager(station_id));
+	}
+	return this.station_table.rawget(station_id);
 }
 
 function AdmiralAI::CargoValuator(cargo_id)
@@ -202,7 +208,6 @@ function AdmiralAI::Save()
 	foreach (veh, dummy in this.sell_vehicles) {
 		to_sell.push(veh);
 	}
-	data.rawset("admiralai_version", "18");
 	data.rawset("vehicles_to_sell", to_sell);
 	data.rawset("stations_to_sell", this.sell_stations);
 	data.rawset("trucklinemanager", this._truck_manager.Save());
@@ -253,11 +258,6 @@ function AdmiralAI::GetEvents()
 	while (AIEventController.IsEventWaiting()) {
 		local e = AIEventController.GetNextEvent();
 		switch (e.GetEventType()) {
-			case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
-				local c = AIEventVehicleWaitingInDepot.Convert(e);
-				this._pending_events.push([AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT, c.GetVehicleID()]);
-				break;
-
 			case AIEvent.AI_ET_INDUSTRY_CLOSE:
 				local ind = AIEventIndustryClose.Convert(e).GetIndustryID();
 				this._pending_events.push([AIEvent.AI_ET_INDUSTRY_CLOSE, ind]);
@@ -346,13 +346,6 @@ function AdmiralAI::HandleEvents()
 {
 	foreach (event_pair in this._pending_events) {
 		switch (event_pair[0]) {
-			case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
-				if (this.sell_vehicles.HasItem(event_pair[1])) {
-					AIVehicle.SellVehicle(event_pair[1]);
-					this.sell_vehicles.RemoveItem(event_pair[1]);
-				}
-				break;
-
 			case AIEvent.AI_ET_INDUSTRY_CLOSE:
 				this._truck_manager.IndustryClose(event_pair[1]);
 				this._train_manager.IndustryClose(event_pair[1]);
@@ -372,6 +365,7 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	this.sell_vehicles.Valuate(AIVehicle.IsValidVehicle);
 	this.sell_vehicles.KeepValue(1);
 	foreach (vehicle, dummy in this.sell_vehicles) {
+		if (AIVehicle.SellVehicle(vehicle)) continue;
 		local tile = AIOrder.GetOrderDestination(vehicle, AIOrder.ORDER_CURRENT);
 		local dest_is_depot = false;
 		switch (AIVehicle.GetVehicleType(vehicle)) {
@@ -396,6 +390,9 @@ function AdmiralAI::SendVehicleToSellToDepot()
 			}
 		}
 	}
+	/* Remove all sold vehicles. */
+	this.sell_vehicles.Valuate(AIVehicle.IsValidVehicle);
+	this.sell_vehicles.KeepValue(1);
 }
 
 function AdmiralAI::TransportCargo(cargo, ind)
@@ -452,10 +449,9 @@ function AdmiralAI::DoMaintenance()
 		foreach (tile, dummy in tiles) {
 			AITile.DemolishTile(tile);
 		}
-		tiles.Valuate(AITile.IsStationTile);
-		tiles.KeepValue(0);
-		if (!AIStation.IsValidStation(pair[0]) || tiles.Count() == 0) {
+		if (!AIStation.IsValidStation(pair[0])) {
 			removed.append(idx);
+			this.station_managers.rawdelete(pair[0]);
 		}
 	}
 	for (local i = removed.len() - 1; i >= 0; i--) {
@@ -466,7 +462,7 @@ function AdmiralAI::DoMaintenance()
 function AdmiralAI::Start()
 {
 	Utils_General.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "vehicle.max_ships",
-		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment"]);
+		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment", "vehicle.wagon_speed_limits"]);
 	if (!this.SomeVehicleTypeAvailable()) {
 		AILog.Error("No supported vehicle type is available.");
 		AILog.Error("Quitting.");
@@ -526,7 +522,7 @@ function AdmiralAI::Start()
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VT_AIR);
-			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count()) {
+			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > veh_list.Count()) {
 				build_route = this._aircraft_manager.BuildNewRoute();
 				Utils_General.GetMoney(200000);
 			}
@@ -545,7 +541,7 @@ function AdmiralAI::Start()
 			local veh_list = AIVehicleList();
 			veh_list.Valuate(AIVehicle.GetVehicleType);
 			veh_list.KeepValue(AIVehicle.VT_AIR);
-			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") * 0.9 > veh_list.Count()) {
+			if (this.UseVehicleType("planes") && AIGameSettings.GetValue("vehicle.max_aircraft") > veh_list.Count()) {
 				if (new_train_route && AIBase.RandRange(2) == 0) {
 					build_route = this._train_manager.BuildNewRoute();
 				} else {
