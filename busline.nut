@@ -78,6 +78,7 @@ function BusLine::BuildVehicles(num)
 			if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 			continue;
 		}
+		AIVehicle.RefitVehicle(v, this._cargo);
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {

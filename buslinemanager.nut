@@ -34,6 +34,7 @@ class BusLineManager
 		this._skip_from = 0;
 		this._skip_to = 0;
 		this._max_distance_new_line = 60;
+		this._last_search_finished = 0;
 	}
 
 	/**
@@ -57,6 +58,13 @@ class BusLineManager
 /* private: */
 
 	/**
+	 * A very simple valuator that just returns the item.
+	 * @param item The item to valuate.
+	 * @return item.
+	 */
+	function _ValuatorReturnItem(item);
+
+	/**
 	 * Build a depot in a given town, close to a station.
 	 * @param town_manager A TownManager that is responsible for the town.
 	 * @param station_manager The StationManager responsible for the station we
@@ -66,7 +74,7 @@ class BusLineManager
 
 	/**
 	 * Try to find two towns that are already connected by road.
-	 * @param num_to_try The number of connection to try before returning.
+	 * @param num_routes_to_check The number of connection to try before returning.
 	 * @return True if and only if a new route was created.
 	 * @note The function may search less routes in case a new route was
 	 *  created or the end of the list was reached. Even if the end of the
@@ -82,6 +90,7 @@ class BusLineManager
 	_max_distance_new_line = null;
 	_skip_from = null;                   ///< Skip this amount of source towns in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
 	_skip_to = null;                     ///< Skip this amount of target towns in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
+	_last_search_finished = null;
 };
 
 function BusLineManager::CheckRoutes()
@@ -126,7 +135,10 @@ function BusLineManager::BuildNewLine()
 			local ret2 = RouteBuilder.BuildRoadRouteFromStation(station_to.GetStationID(), AIStation.STATION_BUS_STOP, [route[1]]);
 			if (ret1 == 0 && ret2 == 0) {
 				AILog.Info("Route ok");
-				local line = BusLine(station_from, station_to, manager.GetDepot(station_from), this._pax_cargo);
+				local depot_tile = manager.GetDepot(station_from);
+				if (depot_tile == null) depot_tile = this._town_managers.rawget(town_to).GetDepot(station_to);
+				if (depot_tile == null) break;
+				local line = BusLine(station_from, station_to, depot_tile, this._pax_cargo);
 				this._routes.push(line);
 				return true;
 			}
@@ -138,6 +150,7 @@ function BusLineManager::BuildNewLine()
 
 function BusLineManager::NewLineExistingRoad()
 {
+	if (AIDate.GetCurrentDate() - this._last_search_finished < 10) return false;
 	return this._NewLineExistingRoadGenerator(40);
 }
 
@@ -205,5 +218,6 @@ function BusLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 	this._max_distance_existing_route = min(400, this._max_distance_existing_route + 50);
 	this._skip_to = 0;
 	this._skip_from = 0;
+	this._last_search_finished = AIDate.GetCurrentDate();
 	return false;
 }

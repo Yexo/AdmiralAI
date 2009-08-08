@@ -6,10 +6,11 @@
 class RouteBuilder
 {
 /* public: */
+
 	/**
 	 * Connect a station with some tiles.
 	 * @param station The StationID from where we want to build a route.
-	 * @param The AIStation::StationType of the parts you want to connect.
+	 * @param station_type The AIStation::StationType of the parts you want to connect.
 	 * @param goals An array containing the tiles to which you want to connect.
 	 * @return
 	 * @todo fill in return value docs.

@@ -2,7 +2,7 @@ class AdmiralAI extends AIInfo {
 	function GetAuthor()      { return "Thijs Marinussen"; }
 	function GetName()        { return "AdmiralAI"; }
 	function GetDescription() { return "Some random road-building ai"; }
-	function GetVersion()     { return 3; }
+	function GetVersion()     { return 4; }
 	function GetDate()        { return "2008-06-12"; }
 	function CreateInstance() { return "AdmiralAI"; }
 };

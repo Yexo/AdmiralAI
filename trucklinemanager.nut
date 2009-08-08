@@ -13,12 +13,14 @@ class TruckLineManager
 	constructor()
 	{
 		this._unbuild_routes = {};
-		this._ind_to_station = {};
+		this._ind_to_pickup_station = {};
+		this._ind_to_drop_station = {};
 		this._routes = [];
 		this._max_distance_existing_route = 100;
 		this._skip_cargo = 0;
 		this._skip_ind_from = 0;
 		this._skip_ind_to = 0;
+		this._last_search_finished = 0;
 		this._InitializeUnbuildRoutes();
 	}
 
@@ -89,12 +91,14 @@ class TruckLineManager
 	function _GetSortedOffsets(tile, goal);
 
 	_unbuild_routes = null;              ///< A table with as index CargoID and as value an array of industries we haven't connected.
-	_ind_to_station = null;              ///< A table mapping IndustryIDs to StationManagers. If an IndustryID is not in this list, we haven't build a station there yet.
+	_ind_to_pickup_station = null;       ///< A table mapping IndustryIDs to StationManagers. If an IndustryID is not in this list, we haven't build a pickup station there yet.
+	_ind_to_drop_station = null;          ///< A table mapping IndustryIDs to StationManagers.
 	_routes = null;                      ///< An array containing all TruckLines build.
 	_max_distance_existing_route = null; ///< The maximum distance between industries where we'll still check if they are alerady connected.
 	_skip_cargo = null;                  ///< Skip this amount of CargoIDs in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
 	_skip_ind_from = null;               ///< Skip this amount of source industries in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
 	_skip_ind_to = null;                 ///< Skip this amount of goal industries in _NewLineExistingRoadGenerator, as we already searched them in a previous run.
+	_last_search_finished = null;
 
 };
 
@@ -104,6 +108,33 @@ function TruckLineManager::CheckRoutes()
 		route.CheckVehicles();
 	}
 	return false;
+}
+
+function TruckLineManager::IndustryClose(industry_id)
+{
+	for (local i = 0; i < this._routes.len(); i++) {
+		local route = this._routes[i];
+		if (route.IsIndustryFrom(industry_id) || route.IsIndustryTo(industry_id)) {
+			route.CloseRoute();
+			this._routes.Remove(i);
+			i--;
+			AILog.Warning("Closed route");
+		}
+	}
+	AILog.Warning("NumRoutes: " + this._routes.len());
+}
+
+function TruckLineManager::IndustryOpen(industry_id)
+{
+	AILog.Info("New industry: " + AIIndustry.GetName(industry_id));
+	local cargo_list = AICargoList();
+	foreach (cargo, dummy in cargo_list) {
+		local ind_list = AIIndustryList_CargoProducing(cargo);
+		if (ind_list.HasItem(industry_id)) {
+			if (!this._unbuild_routes.rawin(cargo)) this._unbuild_routes.rawset(cargo, {});
+			this._unbuild_routes[cargo].rawset(industry_id, 1);
+		}
+	}
 }
 
 function TruckLineManager::BuildNewLine()
@@ -131,10 +162,13 @@ function TruckLineManager::BuildNewLine()
 				local array_to = [];
 				foreach (tile, d in list_to) array_to.push(tile);
 				AILog.Info("Trying to build truck route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
-				local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to);
-				if (ret != 0) return false;
 				local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
-				if (route == null) {AILog.Warning("Couldn't find the route we just built"); continue; }
+				if (route == null) {
+					local ret = RouteBuilder.BuildRoadRoute(RPF(), array_from, array_to);
+					if (ret != 0) return false;
+					route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
+					if (route == null) {AILog.Warning("Couldn't find the route we just built"); continue; }
+				}
 				AILog.Info("Build cargo route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
 				local station_from = this._GetStationNearIndustry(ind_from, route[0], true, cargo);
 				if (station_from == null) break;
@@ -157,13 +191,20 @@ function TruckLineManager::BuildNewLine()
 
 function TruckLineManager::NewLineExistingRoad()
 {
+	if (AIDate.GetCurrentDate() - this._last_search_finished < 10) return false;
 	return this._NewLineExistingRoadGenerator(40);
 }
 
 function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, cargo)
 {
-	if (this._ind_to_station.rawin(ind)) return this._ind_to_station.rawget(ind);
+	AILog.Info(AIIndustry.GetName(ind) + " " + producing + " " + cargo);
+	if (producing && this._ind_to_pickup_station.rawin(ind)) return this._ind_to_pickup_station.rawget(ind);
+	if (!producing && this._ind_to_drop_station.rawin(ind)) return this._ind_to_drop_station.rawget(ind);
 
+	local diagoffsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
+	                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0),
+	                 AIMap.GetTileIndex(-1, -1), AIMap.GetTileIndex(-1, 1),
+	                 AIMap.GetTileIndex(1, -1), AIMap.GetTileIndex(1, 1)];
 	/* No station yet for this industry, so build a new one. */
 	local tile_list;
 	if (producing) tile_list = AITileList_IndustryProducing(ind, AIStation.GetCoverageRadius(AIStation.STATION_TRUCK_STOP));
@@ -176,6 +217,11 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 	tile_list.Valuate(AIMap.DistanceManhattan, dir_tile);
 	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, true);
 	foreach (tile, dummy in tile_list) {
+		local can_build = true;
+		foreach (offset in diagoffsets) {
+			if (AIRoad.IsRoadStationTile(tile + offset)) can_build = false;
+		}
+		if (!can_build) continue;
 		foreach (offset in this._GetSortedOffsets(tile, dir_tile)) {
 			{
 				/* Test if we can build a station and the road to it. */
@@ -188,7 +234,8 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 			if (!AIRoad.BuildRoadStation(tile, tile + offset, true, false)) continue;
 			local station_id = AIStation.GetStationID(tile);
 			local manager = StationManager(station_id);
-			this._ind_to_station.rawset(ind, manager);
+			if (producing) this._ind_to_pickup_station.rawset(ind, manager);
+			else this._ind_to_drop_station.rawset(ind, manager);
 			return manager;
 		}
 	}
@@ -201,6 +248,7 @@ function TruckLineManager::_BuildDepot(station_manager)
 	/* Create a list of all road tiles directly connected with the station tiles. */
 	local stationtiles = AITileList_StationType(station_manager.GetStationID(), AIStation.STATION_TRUCK_STOP);
 	stationtiles.Valuate(AIRoad.GetRoadStationFrontTile);
+	/// @todo What if BuildDepot fails?
 	return AdmiralAI.BuildDepot(stationtiles.GetValue(stationtiles.Begin()));
 }
 
@@ -222,13 +270,11 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 		}
 		if (!this._unbuild_routes.rawin(cargo)) continue;
 		foreach (ind_from, dummy in this._unbuild_routes.rawget(cargo)) {
-			if (!this._unbuild_routes[cargo].rawin(ind_from)) continue;
-			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) continue;
 			if (ind_from_skipped < this._skip_ind_from && do_skip) {
 				ind_from_skipped++;
 				continue;
 			}
-			do_skip = false;
+			if (AIIndustry.GetLastMonthProduction(ind_from, cargo) - (AIIndustry.GetLastMonthTransported(ind_from, cargo) >> 1) < 40) continue;
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(30, this._max_distance_existing_route);
@@ -236,15 +282,14 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			foreach (ind_to, dummy in ind_acc_list) {
 				if (ind_to_skipped < this._skip_ind_to && do_skip) {
 					ind_to_skipped++;
-					ind_from_skipped++;
 					continue;
 				}
 				do_skip = false;
-				this._skip_ind_to++;
 				current_routes++;
 				if (current_routes == num_routes_to_check) {
 					return false;
 				}
+				this._skip_ind_to++;
 				local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AIIndustry.GetLocation(ind_to), 8);
 				if (route == null) continue;
 				AILog.Info("Found cargo route between: " + AIIndustry.GetName(ind_from) + " and " + AIIndustry.GetName(ind_to));
@@ -259,8 +304,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 					local line = TruckLine(ind_from, station_from, ind_to, station_to, this._BuildDepot(station_from), cargo);
 					this._routes.push(line);
 					this._unbuild_routes[cargo].rawdelete(ind_from);
-					this._skip_ind_from = 0;
-					this._skip_ind_to = 0;
+					this._skip_ind_to--;
 					return true;
 				}
 			}
@@ -277,6 +321,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 	this._skip_ind_from = 0;
 	this._skip_ind_to = 0;
 	this._skip_cargo = 0;
+	this._last_search_finished = AIDate.GetCurrentDate();
 	return false;
 }
 
