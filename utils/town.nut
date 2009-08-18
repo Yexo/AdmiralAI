@@ -17,7 +17,7 @@
  * Copyright 2008-2009 Thijs Marinussen
  */
 
- /** @file utils/town.nut Some town-related functions. */
+/** @file utils/town.nut Some town-related functions. */
 
 /**
  * A utility class containing some functions related to towns.

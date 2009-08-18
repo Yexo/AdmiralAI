@@ -17,7 +17,7 @@
  * Copyright 2008-2009 Thijs Marinussen
  */
 
- /** @file utils/airport.nut Some aircraft-related functions. */
+/** @file utils/airport.nut Some aircraft-related functions. */
 
 /**
  * A utility class containing some aircraft-related functions.

@@ -17,7 +17,7 @@
  * Copyright 2008-2009 Thijs Marinussen
  */
 
- /** @file utils/tile.nut AITile-related utility functions. */
+/** @file utils/tile.nut AITile-related utility functions. */
 
 /**
  * A utility class containing tile related functions.

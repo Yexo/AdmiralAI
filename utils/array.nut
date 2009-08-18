@@ -17,7 +17,7 @@
  * Copyright 2008-2009 Thijs Marinussen
  */
 
- /** @file utils/array.nut Array utility functions. */
+/** @file utils/array.nut Array utility functions. */
 
 /**
  * A general class containing some utility functions for arrays, lists and tables.

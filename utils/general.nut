@@ -17,7 +17,7 @@
  * Copyright 2008-2009 Thijs Marinussen
  */
 
- /** @file utils/general.nut General utility functions. */
+/** @file utils/general.nut General utility functions. */
 
 /**
  * A utility class containing some general functions.
@@ -42,12 +42,12 @@ class Utils_General
 	 */
 	static function GetMoney(amount);
 
-	 /**
-	  * Check if all game settings are valid in the current openttd version.
-	  * @param array An array with the settings to check.
-	  * @return True if all settings are valid.
-	  * @exception If one of the settings is not valid.
-	  */
+	/**
+	 * Check if all game settings are valid in the current openttd version.
+	 * @param array An array with the settings to check.
+	 * @return True if all settings are valid.
+	 * @exception If one of the settings is not valid.
+	 */
 	static function CheckSettings(array);
 
 	/**

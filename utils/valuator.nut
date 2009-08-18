@@ -17,7 +17,7 @@
  * Copyright 2008-2009 Thijs Marinussen
  */
 
- /** @file utils/valuator.nut Some general valuators. */
+/** @file utils/valuator.nut Some general valuators. */
 
 /**
  * A utility class containing some general valuators.
