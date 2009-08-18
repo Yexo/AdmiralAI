@@ -194,7 +194,7 @@ function RPF::_GetBridgeNumSlopes(end_a, end_b)
 
 function RPF::_Cost(path, new_tile, new_direction, self)
 {
-	if (Utils_Tile.GetRealHeight(new_tile) == 0) return self._max_cost;
+	if (AITile.GetMaxHeight(new_tile) == 0) return self._max_cost;
 	/* path == null means this is the first node of a path, so the cost is 0. */
 	if (path == null) return 0;
 	if (AITile.HasTransportType(new_tile, AITile.TRANSPORT_RAIL) && !AITile.HasTransportType(new_tile, AITile.TRANSPORT_ROAD)) return self._max_cost;

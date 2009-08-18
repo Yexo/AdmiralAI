@@ -412,7 +412,7 @@ function TownManager::GetStation(force_dtrs)
 	if (population > 35000) radius += 5;
 	if (population > 45000) radius += 5;
 	Utils_Tile.AddSquare(list, town_center, radius);
-	list.Valuate(Utils_Tile.GetRealHeight);
+	list.Valuate(AITile.GetMaxHeight);
 	list.KeepAboveValue(0);
 	list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
 	list.KeepValue(1);
@@ -485,7 +485,7 @@ function TownManager::GetStation(force_dtrs)
 		foreach (offset in offsets) {
 			if (!AIRoad.IsRoadTile(t + offset)) continue;
 			if (!Utils_Tile.IsNearlyFlatTile(t + offset)) continue;
-			if (Utils_Tile.GetRealHeight(t) != Utils_Tile.GetRealHeight(t + offset)) continue;
+			if (AITile.GetMaxHeight(t) != AITile.GetMaxHeight(t + offset)) continue;
 			if (RouteFinder.FindRouteBetweenRects(t + offset, AITown.GetLocation(this._town_id), 0) == null) continue;
 			if (!AITile.IsBuildable(t) && !AITile.DemolishTile(t)) continue;
 			{

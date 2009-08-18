@@ -516,7 +516,7 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 	local tile_list;
 	if (producing) tile_list = AITileList_IndustryProducing(ind, AIStation.GetCoverageRadius(AIStation.STATION_TRAIN));
 	else tile_list = AITileList_IndustryAccepting(ind, AIStation.GetCoverageRadius(AIStation.STATION_TRAIN));
-	tile_list.Valuate(Utils_Tile.GetRealHeight);
+	tile_list.Valuate(AITile.GetMaxHeight);
 	tile_list.KeepAboveValue(0);
 
 	local tile_list2 = AITileList();

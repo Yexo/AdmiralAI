@@ -398,7 +398,7 @@ function StationManager::_TryBuildExtraTruckStops(num_to_build, delete_tiles)
 					{
 						local exec = AIExecMode();
 						AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)));
-						if (Utils_Tile.GetRealHeight(tile) > Utils_Tile.GetRealHeight(tile + offset)) {
+						if (AITile.GetMaxHeight(tile) > AITile.GetMaxHeight(tile + offset)) {
 							AITile.LowerTile(tile, AITile.GetSlope(tile));
 						}
 					}

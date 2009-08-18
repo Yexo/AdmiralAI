@@ -27,16 +27,6 @@ class Utils_Tile
 /* public: */
 
 	/**
-	 * Get the real tile height of a tile. The real tile hight is the base tile hight plus 1 if
-	 *   the tile is a non-flat tile.
-	 * @param tile The tile to get the height for.
-	 * @return The height of the tile.
-	 * @note The base tile hight is not the same as AITile.GetHeight. The value returned by
-	 *   AITile.GetHeight is one too high in case the north corner is raised.
-	 */
-	static function GetRealHeight(tile);
-
-	/**
 	 * Check if we can handle a tile as a flat tile.
 	 * @param tile The tile to check.
 	 * @return Whether or not at least three corners of the tile are at the same
@@ -105,23 +95,6 @@ class Utils_Tile
 	static function FlattenLandForStation(tile, width, height, tile_height, force_flatten_x = false, force_flatten_y = false);
 };
 
-function Utils_Tile::GetRealHeight(tile)
-{
-	local height = AITile.GetHeight(tile);
-	local slope = AITile.GetSlope(tile);
-	if (AITile.IsSteepSlope(slope)) {
-		switch (slope) {
-			case AITile.SLOPE_STEEP_N: return height;
-			case AITile.SLOPE_STEEP_E: return height + 1;
-			case AITile.SLOPE_STEEP_W: return height + 1;
-			case AITile.SLOPE_STEEP_S: return height + 2;
-		}
-	}
-	if (slope & AITile.SLOPE_N) height--;
-	if (slope != AITile.SLOPE_FLAT) height++;
-	return height;
-}
-
 function Utils_Tile::IsNearlyFlatTile(tile)
 {
 	local slope = AITile.GetSlope(tile);
@@ -161,11 +134,11 @@ function Utils_Tile::CanBuildStation(tile, width, height)
 {
 	local test = AITestMode();
 	if (!AITile.IsBuildableRectangle(tile, width, height)) return -1;
-	local min_height = Utils_Tile.GetRealHeight(tile);
+	local min_height = AITile.GetMaxHeight(tile);
 	local max_height = min_height;
 	for (local x = AIMap.GetTileX(tile); x < AIMap.GetTileX(tile) + width; x++) {
 		for (local y = AIMap.GetTileY(tile); y < AIMap.GetTileY(tile) + height; y++) {
-			local h = Utils_Tile.GetRealHeight(AIMap.GetTileIndex(x, y));
+			local h = AITile.GetMaxHeight(AIMap.GetTileIndex(x, y));
 			min_height = min(min_height, h);
 			max_height = max(max_height, h);
 			if (max_height - min_height > 2) return -1;
@@ -179,12 +152,12 @@ function Utils_Tile::CanBuildStation(tile, width, height)
 		for (local x = AIMap.GetTileX(tile); tf_ok && x < AIMap.GetTileX(tile) + width; x++) {
 			for (local y = AIMap.GetTileY(tile); tf_ok && y < AIMap.GetTileY(tile) + height; y++) {
 				local t = AIMap.GetTileIndex(x, y);
-				local h = Utils_Tile.GetRealHeight(t);
+				local h = AITile.GetMaxHeight(t);
 				if (h < height && !AITile.RaiseTile(t, AITile.GetComplementSlope(AITile.GetSlope(t)))) {
 					tf_ok = false;
 					break;
 				}
-				h = Utils_Tile.GetRealHeight(t);
+				h = AITile.GetMaxHeight(t);
 				/* We need to check this twice, because the first one flattens the tile, and the second time it's raised. */
 				if (h < height && !AITile.RaiseTile(t, AITile.GetComplementSlope(AITile.GetSlope(t)))) {
 					tf_ok = false;
@@ -214,7 +187,7 @@ function Utils_Tile::FlattenLandForStation(tile, width, height, tile_height, for
 	for (local x = min_x; x <= max_x; x++) {
 		for (local y = min_y; y <= max_y; y++) {
 			local t = AIMap.GetTileIndex(x, y);
-			local h = Utils_Tile.GetRealHeight(t);
+			local h = AITile.GetMaxHeight(t);
 			if (abs(tile_height - h) >= 2) {
 				AILog.Error("Utils_Tile::FlattenLandForStation(): Difference in tile height is too big");
 				return false;

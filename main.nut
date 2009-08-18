@@ -419,8 +419,8 @@ function AdmiralAI::GetEvents()
 			if (AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) continue;
 			if (AIRoad.IsRoadTile(cur_tile + offset)) continue;
 			if (!AITile.DemolishTile(cur_tile + offset)) continue;
-			local h = Utils_Tile.GetRealHeight(cur_tile);
-			local h2 = Utils_Tile.GetRealHeight(cur_tile + offset);
+			local h = AITile.GetMaxHeight(cur_tile);
+			local h2 = AITile.GetMaxHeight(cur_tile + offset);
 			if (h2 > h) AITile.LowerTile(cur_tile + offset, AITile.GetSlope(cur_tile + offset));
 			if (h > h2) AITile.RaiseTile(cur_tile + offset, AITile.GetComplementSlope(AITile.GetSlope(cur_tile + offset)));
 			if (!AIRoad.BuildRoad(cur_tile + offset, cur_tile)) continue;

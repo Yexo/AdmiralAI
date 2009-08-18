@@ -206,7 +206,7 @@ function RailPF::_nonzero(a, b)
 
 function RailPF::_Cost(path, new_tile, new_direction, self)
 {
-	if (Utils_Tile.GetRealHeight(new_tile) == 0) return self._max_cost;
+	if (AITile.GetMaxHeight(new_tile) == 0) return self._max_cost;
 	/* path == null means this is the first node of a path, so the cost is 0. */
 	if (path == null) return 0;
 

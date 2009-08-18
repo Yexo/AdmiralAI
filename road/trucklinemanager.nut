@@ -418,7 +418,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 
 	tile_list.Valuate(AITile.GetOwner);
 	tile_list.RemoveBetweenValue(AICompany.COMPANY_FIRST - 1, AICompany.COMPANY_LAST + 1);
-	tile_list.Valuate(Utils_Tile.GetRealHeight);
+	tile_list.Valuate(AITile.GetMaxHeight);
 	tile_list.KeepAboveValue(0);
 	tile_list.Valuate(AIBase.RandItem);
 	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
@@ -435,15 +435,15 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 				if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) {
 					{
 						local exec = AIExecMode();
-						if (Utils_Tile.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
+						if (AITile.GetMaxHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) continue;
 				}
 				if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			}
-			if (Utils_Tile.GetRealHeight(tile + offset) > Utils_Tile.GetRealHeight(tile)) {
+			if (AITile.GetMaxHeight(tile + offset) > AITile.GetMaxHeight(tile)) {
 				if (!AITile.LowerTile(tile + offset, AITile.GetSlope(tile + offset))) continue;
-			} else if (Utils_Tile.GetRealHeight(tile + offset) < Utils_Tile.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
+			} else if (AITile.GetMaxHeight(tile + offset) < AITile.GetMaxHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
 				if (!AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)))) continue;
 			}
 			/* Build both the road and the station. If building fails, try another location.*/
@@ -490,7 +490,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 	 * and we can't delete tiles belonging to the competitors. */
 	tile_list.Valuate(AITile.GetOwner);
 	tile_list.RemoveBetweenValue(AICompany.COMPANY_FIRST - 1, AICompany.COMPANY_LAST + 1);
-	tile_list.Valuate(Utils_Tile.GetRealHeight);
+	tile_list.Valuate(AITile.GetMaxHeight);
 	tile_list.KeepAboveValue(0);
 	if (!producing) {
 		tile_list.Valuate(AITile.GetCargoAcceptance, cargo, 1, 1, AIStation.GetCoverageRadius(AIStation.STATION_TRUCK_STOP));
@@ -513,15 +513,15 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 				if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) {
 					{
 						local exec = AIExecMode();
-						if (Utils_Tile.GetRealHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
+						if (AITile.GetMaxHeight(tile) == 1 || !AITile.LowerTile(tile, AITile.GetSlope(tile))) continue;
 					}
 					if (!AIRoad.BuildRoadStation(tile, tile + offset, AIRoad.ROADVEHTYPE_TRUCK, AIStation.STATION_NEW)) continue;
 				}
 				if (!AIRoad.BuildRoad(tile, tile + offset)) continue;
 			}
-			if (Utils_Tile.GetRealHeight(tile + offset) > Utils_Tile.GetRealHeight(tile)) {
+			if (AITile.GetMaxHeight(tile + offset) > AITile.GetMaxHeight(tile)) {
 				if (!AITile.LowerTile(tile + offset, AITile.GetSlope(tile + offset))) continue;
-			} else if (Utils_Tile.GetRealHeight(tile + offset) < Utils_Tile.GetRealHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
+			} else if (AITile.GetMaxHeight(tile + offset) < AITile.GetMaxHeight(tile) || AITile.GetSlope(tile + offset) != AITile.SLOPE_FLAT) {
 				if (!AITile.RaiseTile(tile + offset, AITile.GetComplementSlope(AITile.GetSlope(tile + offset)))) continue;
 				/* TODO: this is not always enough, ie if tile+offset is lower and non-flat. */
 			}
