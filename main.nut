@@ -550,6 +550,36 @@ function AdmiralAI::DoMaintenance()
 	}
 }
 
+function AdmiralAI::SetCompanyName()
+{
+	local company_name_suffixes = ["Transport", "International", "and co.", "Ltd.", "Global Transport"];
+
+	/* Create a bitmap of all vehicle types we can use. */
+	local vehicle_types = 0;
+	if (AdmiralAI.UseVehicleType("planes")) vehicle_types = vehicle_types | (1 << AIVehicle.VT_AIR);
+	if (AdmiralAI.UseVehicleType("trains")) vehicle_types = vehicle_types | (1 << AIVehicle.VT_RAIL);
+	if (AdmiralAI.UseVehicleType("trucks")) vehicle_types = vehicle_types | (1 << AIVehicle.VT_ROAD);
+	if (AdmiralAI.UseVehicleType("busses")) vehicle_types = vehicle_types | (1 << AIVehicle.VT_ROAD);
+	if (AdmiralAI.UseVehicleType("ships")) vehicle_types = vehicle_types | (1 << AIVehicle.VT_WATER);
+
+	/* A few special names if we can only use 1 vehicle type. */
+	switch (vehicle_types) {
+		case (1 << AIVehicle.VT_AIR):
+			company_name_suffixes = ["Airlines", "Airways"];
+			break;
+
+		case (1 << AIVehicle.VT_RAIL):
+			company_name_suffixes = ["Rails", "Railways"];
+			break;
+
+		case (1 << AIVehicle.VT_WATER):
+			company_name_suffixes = ["Shipping"];
+			break;
+	}
+	local prefix = "AdmiralAI ";
+	Utils_General.SetCompanyName(prefix, Utils_Array.RandomReorder(company_name_suffixes));
+}
+
 function AdmiralAI::Start()
 {
 	/* Check if the names of some settings are valid. Of course this isn't
@@ -569,7 +599,7 @@ function AdmiralAI::Start()
 	local start_tick = AIController.GetTick();
 
 	if (AICompany.GetName(AICompany.COMPANY_SELF).find("AdmiralAI") == null) {
-		Utils_General.SetCompanyName(Utils_Array.RandomReorder(["AdmiralAI"]));
+		this.SetCompanyName();
 		AILog.Info(AICompany.GetName(AICompany.COMPANY_SELF) + " has just started!");
 	}
 

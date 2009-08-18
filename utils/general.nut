@@ -30,9 +30,10 @@ class Utils_General
 	 * Set the company name to the first item from name_list that is possible.
 	 *  If all company names in name_list are taken already, try appending them
 	 *  with " #1", " #2", etc.
-	 * @param name_array An array with strings that are possible names.
+	 * @param name_prefix The prefix for the company name.
+	 * @param name_suffixes An array with strings that can be appended to the prefix.
 	 */
-	static function SetCompanyName(name_array);
+	static function SetCompanyName(name_prefix, name_suffixes);
 
 	/**
 	 * Try to get a specified amount of money.
@@ -56,18 +57,20 @@ class Utils_General
 	static function GetPassengerCargoID();
 };
 
-function Utils_General::SetCompanyName(name_array)
+function Utils_General::SetCompanyName(name_prefix, name_suffixes)
 {
 	local counter = 0;
-	do {
-		foreach (name in name_array) {
+	// We need a cutoff in case all names fail because they're too long
+	while (counter < 16) {
+		foreach (name_suffix in name_array) {
+			local name = name_prefix + name_suffix;
 			if (counter > 0) {
 				name = name + " #" + counter;
 			}
 			if (AICompany.SetName(name)) return;
 		}
 		counter++;
-	} while(true);
+	}
 }
 
 function Utils_General::GetMoney(amount)
