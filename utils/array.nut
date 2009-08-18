@@ -54,13 +54,6 @@ class Utils_Array
 	 * @return A string containing all item => value pairs from the list.
 	 */
 	static function AIListToString(list);
-
-	/**
-	 * Check if all settings are valid and throw an error if one or more is not valid.
-	 * @param list An array of strings to check.
-	 * @return No value is returned, but an exception is thrown if at least one setting is invalid.
-	 */
-	static function CheckSettings(list);
 };
 
 function Utils_Array::RandomReorder(array)
