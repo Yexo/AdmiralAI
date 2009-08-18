@@ -88,6 +88,9 @@ class AdmiralAI extends AIController
 		 * This needs to be done here, before any instance of it is made. */
 		AIAbstractList.SORT_ASCENDING <- true;
 		AIAbstractList.SORT_DESCENDING <- false;
+
+		this._save_data = null;
+		this._save_version = null;
 	}
 
 	/**
@@ -110,9 +113,6 @@ class AdmiralAI extends AIController
 		this._train_manager = TrainManager();
 
 		this._pending_events = [];
-
-		this._save_data = null;
-		this._save_version = null;
 
 		this.last_vehicle_check = 0;
 		this.last_cash_output = AIDate.GetCurrentDate();
