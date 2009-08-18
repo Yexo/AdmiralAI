@@ -210,6 +210,7 @@ function RouteBuilder::DeleteDeadEnd(tile)
 	local offsets = [AIMap.GetTileIndex(0, 1), AIMap.GetTileIndex(0, -1),
 	                 AIMap.GetTileIndex(1, 0), AIMap.GetTileIndex(-1, 0)];
 	for (local num_removed = 0; num_removed < 10; num_removed++) {
+		if (AIBridge.IsBridgeTile(tile) || AITunnel.IsTunnelTile(tile)) return;
 		local next_tile = null;
 		foreach (offset in offsets) {
 			if (AIRoad.AreRoadTilesConnected(tile, tile + offset) || AIRoad.AreRoadTilesConnected(tile + offset, tile)) {
