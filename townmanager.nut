@@ -138,7 +138,9 @@ function TownManager::CanBuildPlanes(station_id)
 		case AIAirport.AT_INTERNATIONAL: max_planes = 16; break;
 		case AIAirport.AT_COMMUTER:      max_planes =  8; break;
 		case AIAirport.AT_INTERCON:      max_planes = 24; break;
-		default: throw("Unsupported airport type encountered");
+		default: 
+			AILog.Error("Unsupported airport type encountered");
+			return 0;
 	}
 	local list = AIVehicleList_Station(station_id);
 	if (list.Count() + 2 > max_planes) return false;
