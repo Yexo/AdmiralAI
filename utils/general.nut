@@ -62,7 +62,7 @@ function Utils_General::SetCompanyName(name_prefix, name_suffixes)
 	local counter = 0;
 	// We need a cutoff in case all names fail because they're too long
 	while (counter < 16) {
-		foreach (name_suffix in name_array) {
+		foreach (name_suffix in name_suffixes) {
 			local name = name_prefix + name_suffix;
 			if (counter > 0) {
 				name = name + " #" + counter;
