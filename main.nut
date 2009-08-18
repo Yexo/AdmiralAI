@@ -456,23 +456,7 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	this.sell_vehicles.KeepValue(1);
 	foreach (vehicle, dummy in this.sell_vehicles) {
 		if (AIVehicle.SellVehicle(vehicle)) continue;
-		local tile = AIOrder.GetOrderDestination(vehicle, AIOrder.ORDER_CURRENT);
-		local dest_is_depot = false;
-		switch (AIVehicle.GetVehicleType(vehicle)) {
-			case AIVehicle.VT_RAIL:
-				dest_is_depot = AIRail.IsRailDepotTile(tile);
-				break;
-			case AIVehicle.VT_ROAD:
-				dest_is_depot = AIRoad.IsRoadDepotTile(tile);
-				break;
-			case AIVehicle.VT_WATER:
-				dest_is_depot = AIMarine.IsWaterDepotTile(tile);
-				break;
-			case AIVehicle.VT_AIR:
-				dest_is_depot = AIAirport.IsHangarTile(tile);
-				break;
-		}
-		if (!dest_is_depot) {
+		if (!AIOrder.IsGotoDepotOrder(vehicle, AIOrder.ORDER_CURRENT)) {
 			if (!AIVehicle.SendVehicleToDepot(vehicle)) {
 				AIVehicle.ReverseVehicle(vehicle);
 				AIController.Sleep(50);
