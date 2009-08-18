@@ -573,6 +573,16 @@ function AdmiralAI::Start()
 		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment", "vehicle.wagon_speed_limits"]);
 	/* Call our real constructor here to prevent 'is taking too long to load' errors. */
 	this.Init();
+
+	/* All vehicle groups are deleted when starting and recreated in all Load/AfterLoad
+	 * functions. This is done so we don't have so save the GroupIDs and can
+	 * easier load savegames saved by other AIs that use a different group
+	 * structure. */
+	local group_list = AIGroupList();
+	foreach (group, dummy in group_list) {
+		AIGroup.DeleteGroup(group);
+	}
+
 	/* Use the savegame data (if any) to reconstruct as much state as possible. */
 	this.CallLoad();
 	if (!this.SomeVehicleTypeAvailable()) {
@@ -596,15 +606,6 @@ function AdmiralAI::Start()
 	} else {
 		AILog.Info("Breakdowns are off, so disabling autorenew");
 		AICompany.SetAutoRenewStatus(false);
-	}
-
-	/* All vehicle groups are deleted after load and recreated in all AfterLoad
-	 * functions. This is done so we don't have so save the GroupIDs and can
-	 * easier load savegames saved by other AIs that use a different group
-	 * structure. */
-	local group_list = AIGroupList();
-	foreach (group, dummy in group_list) {
-		AIGroup.DeleteGroup(group);
 	}
 
 	this._bus_manager.AfterLoad();
