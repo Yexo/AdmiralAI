@@ -316,30 +316,30 @@ function AdmiralAI::CallLoad()
 
 	AILog.Info("Loading savegame saved with AdmiralAI " + this._save_version);
 
-	if (data.rawin("vehicles_to_sell")) {
-		foreach (v in data.rawget("vehicles_to_sell")) {
+	if (this._save_data.rawin("vehicles_to_sell")) {
+		foreach (v in this._save_data.rawget("vehicles_to_sell")) {
 			if (AIVehicle.IsValidVehicle(v)) this.sell_vehicles.AddItem(v, 0);
 		}
 	}
 
-	if (data.rawin("stations_to_sell")) {
-		this.sell_stations = data.rawget("stations_to_sell");
+	if (this._save_data.rawin("stations_to_sell")) {
+		this.sell_stations = this._save_data.rawget("stations_to_sell");
 	}
 
-	if (data.rawin("trucklinemanager")) {
-		this._truck_manager.Load(data.rawget("trucklinemanager"));
+	if (this._save_data.rawin("trucklinemanager")) {
+		this._truck_manager.Load(this._save_data.rawget("trucklinemanager"));
 	}
 
-	if (data.rawin("buslinemanager")) {
-		this._bus_manager.Load(data.rawget("buslinemanager"));
+	if (this._save_data.rawin("buslinemanager")) {
+		this._bus_manager.Load(this._save_data.rawget("buslinemanager"));
 	}
 
-	if (data.rawin("trainmanager")) {
-		this._train_manager.Load(data.rawget("trainmanager"));
+	if (this._save_data.rawin("trainmanager")) {
+		this._train_manager.Load(this._save_data.rawget("trainmanager"));
 	}
 
-	if (data.rawin("pending_events")) {
-		this._pending_events = data.rawget("pending_events");
+	if (this._save_data.rawin("pending_events")) {
+		this._pending_events = this._save_data.rawget("pending_events");
 	}
 }
 
