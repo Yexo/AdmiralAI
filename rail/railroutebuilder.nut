@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AdmiralAI.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2008-2009 Thijs Marinussen
+ * Copyright 2008-2010 Thijs Marinussen
  */
 
 /** @file railroutebuilder.nut Some rail route building functions. */
