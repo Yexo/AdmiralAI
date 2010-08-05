@@ -234,8 +234,8 @@ function BusLineManager::BuildNewLine()
 	subsidies.KeepAboveValue(AIDate.GetCurrentDate() + 180);
 	/* Finally we have a list of usaable subsidies. */
 	foreach (subsidy, dummy in subsidies) {
-		local town_from = AISubsidy.GetSource(subsidy);
-		local town_to = AISubsidy.GetDestination(subsidy);
+		local town_from = AISubsidy.GetSourceIndex(subsidy);
+		local town_to = AISubsidy.GetDestinationIndex(subsidy);
 		local manager = ::main_instance._town_managers[town_from];
 		local manager2 = ::main_instance._town_managers[town_to];
 		if (!manager.CanGetStation() || !manager2.CanGetStation()) continue;
