@@ -100,7 +100,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 {
 	if (AIRail.GetRailTracks(tile) == AIRail.RAILTRACK_NW_SE) {
 		if (start_tile > tile) {
-			AIRail.RemoveRailStationTileRect(tile + AIMap.GetTileIndex(0, platform_length), tile + AIMap.GetTileIndex(1, platform_length + 1));
+			AIRail.RemoveRailStationTileRectangle(tile + AIMap.GetTileIndex(0, platform_length), tile + AIMap.GetTileIndex(1, platform_length + 1), false);
 			local tile2 = tile + AIMap.GetTileIndex(0, platform_length)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
 				AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)));
@@ -118,7 +118,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 
 			if (!AIRail.BuildSignal(tile + AIMap.GetTileIndex(second_station ? 0 : 1, platform_length + 1), tile + AIMap.GetTileIndex(second_station ? 0 : 1, platform_length + 2), AIRail.SIGNALTYPE_PBS_ONEWAY)) return false;
 		} else {
-			AIRail.RemoveRailStationTileRect(tile, tile + AIMap.GetTileIndex(1, 1));
+			AIRail.RemoveRailStationTileRectangle(tile, tile + AIMap.GetTileIndex(1, 1), false);
 			tile = tile + AIMap.GetTileIndex(0, 2);
 			local tile2 = tile + AIMap.GetTileIndex(0, -1)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
@@ -139,7 +139,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 		}
 	} else {
 		if (start_tile > tile) {
-			AIRail.RemoveRailStationTileRect(tile + AIMap.GetTileIndex(platform_length, 0), tile + AIMap.GetTileIndex(platform_length + 1, 1));
+			AIRail.RemoveRailStationTileRectangle(tile + AIMap.GetTileIndex(platform_length, 0), tile + AIMap.GetTileIndex(platform_length + 1, 1), false);
 			local tile2 = tile + AIMap.GetTileIndex(platform_length, 0)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
 				AITile.RaiseTile(tile2, AITile.GetComplementSlope(AITile.GetSlope(tile2)));
@@ -157,7 +157,7 @@ function RailRouteBuilder::BuildTrackNearStation(tile, start_tile, platform_leng
 
 			if (!AIRail.BuildSignal(tile + AIMap.GetTileIndex(platform_length + 1, second_station ? 0 : 1), tile + AIMap.GetTileIndex(platform_length + 2, second_station ? 0 : 1), AIRail.SIGNALTYPE_PBS_ONEWAY)) return false;
 		} else {
-			AIRail.RemoveRailStationTileRect(tile, tile + AIMap.GetTileIndex(1, 1));
+			AIRail.RemoveRailStationTileRectangle(tile, tile + AIMap.GetTileIndex(1, 1), false);
 			tile = tile + AIMap.GetTileIndex(2, 0);
 			local tile2 = tile + AIMap.GetTileIndex(-1, 0)
 			if (AITile.GetSlope(tile2) != AITile.SLOPE_FLAT) {
