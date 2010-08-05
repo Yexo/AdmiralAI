@@ -97,13 +97,12 @@ function Utils_Array::AIListToString(list)
 	if (typeof(list) != "instance") throw("Utils::AIListToString(): argument has to be an instance of AIAbstractList.");
 	local ret = "[";
 	if (!list.IsEmpty()) {
-		local a = list.Begin();
-		ret += a + "=>" + list.GetValue(a);
-		if (list.HasNext()) {
-			for (local i = list.Next(); list.HasNext(); i = list.Next()) {
-				ret += ", " + i + "=>" + list.GetValue(i);
-			}
+		local contents = "";
+		foreach (a, b in list) {
+			if (contents != "") contents += ", ";
+			contents += a + "=>" b;
 		}
+		ret += contents;
 	}
 	ret += "]";
 	return ret;
