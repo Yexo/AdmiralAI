@@ -195,7 +195,7 @@ function AircraftManager::BuildPlanes(station_a, station_b)
 	/* Add the vehicle to the right group. */
 	AIGroup.MoveVehicle(small_airport ? this._small_engine_group : this._big_engine_group, v);
 	/* Start with going to the second airport. */
-	AIVehicle.SkipToVehicleOrder(v, 1);
+	AIOrder.SkipToOrder(v, 1);
 	AIVehicle.StartStopVehicle(v);
 
 	return true;

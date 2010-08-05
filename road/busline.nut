@@ -133,7 +133,7 @@ function BusLine::BuildVehicles(num)
 			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
 		}
-		if (i % 2) AIVehicle.SkipToVehicleOrder(v, 1);
+		if (i % 2) AIOrder.SkipToOrder(v, 1);
 		this._station_from.AddBusses(1, this._distance, max_speed);
 		this._station_to.AddBusses(1, this._distance, max_speed);
 		AIGroup.MoveVehicle(this._group_id, v);
