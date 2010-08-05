@@ -224,10 +224,10 @@ function BusLineManager::BuildNewLine()
 	/* We only want passengers subsidies from town to town. */
 	subsidies.Valuate(AISubsidy.GetCargoType);
 	subsidies.KeepValue(::main_instance._passenger_cargo_id);
-	subsidies.Valuate(AISubsidy.SourceIsTown);
-	subsidies.KeepValue(1);
-	subsidies.Valuate(AISubsidy.DestinationIsTown);
-	subsidies.KeepValue(1);
+	subsidies.Valuate(AISubsidy.GetSourceType);
+	subsidies.KeepValue(AISubsidy.SPT_TOWN);
+	subsidies.Valuate(AISubsidy.GetDestinationType);
+	subsidies.KeepValue(AISubsidy.SPT_TOWN);
 	/* We need at least 6 months or the subsidy might already be expired
 	 * before we are done building the route. */
 	subsidies.Valuate(AISubsidy.GetExpireDate);
