@@ -91,6 +91,11 @@ class AdmiralAI extends AIController
 
 		this._save_data = null;
 		this._save_version = null;
+
+		/* Most of the initialization is done in Init, but we set some variables
+		 * here so we can save them without checking for null. */
+		this._pending_events = [];
+		this.sell_stations = [];
 	}
 
 	/**
@@ -112,13 +117,10 @@ class AdmiralAI extends AIController
 		this._aircraft_manager = AircraftManager();
 		this._train_manager = TrainManager();
 
-		this._pending_events = [];
-
 		this.last_vehicle_check = 0;
 		this.last_cash_output = AIDate.GetCurrentDate();
 		this.last_improve_buslines_date = 0;
 		this.need_vehicle_check = false;
-		this.sell_stations = [];
 		this.sell_vehicles = AIList();
 		this._sorted_cargo_list = null;
 		this._sorted_cargo_list_updated = 0;
@@ -286,16 +288,20 @@ function AdmiralAI::Save()
 		return this._save_data;
 	}
 
+	/* All checks for != null below are needed because it's possible that Save()
+	 * is called before we call Init() (from Start()). */
 	local data = {};
-	local to_sell = [];
-	foreach (veh, dummy in this.sell_vehicles) {
-		to_sell.push(veh);
+	if (this.sell_vehicles != null) {
+		local to_sell = [];
+		foreach (veh, dummy in this.sell_vehicles) {
+			to_sell.push(veh);
+		}
+		data.rawset("vehicles_to_sell", to_sell);
 	}
-	data.rawset("vehicles_to_sell", to_sell);
 	data.rawset("stations_to_sell", this.sell_stations);
-	data.rawset("trucklinemanager", this._truck_manager.Save());
-	data.rawset("buslinemanager", this._bus_manager.Save());
-	data.rawset("trainmanager", this._train_manager.Save());
+	if (this._truck_manager != null) data.rawset("trucklinemanager", this._truck_manager.Save());
+	if (this._bus_manager   != null) data.rawset("buslinemanager", this._bus_manager.Save());
+	if (this._train_manager != null) data.rawset("trainmanager", this._train_manager.Save());
 
 	this.GetEvents();
 	data.rawset("pending_events", this._pending_events);
