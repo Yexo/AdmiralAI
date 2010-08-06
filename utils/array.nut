@@ -100,7 +100,7 @@ function Utils_Array::AIListToString(list)
 		local contents = "";
 		foreach (a, b in list) {
 			if (contents != "") contents += ", ";
-			contents += a + "=>" b;
+			contents += a + "=>" + b;
 		}
 		ret += contents;
 	}
