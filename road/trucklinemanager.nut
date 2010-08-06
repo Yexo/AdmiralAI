@@ -264,10 +264,11 @@ function TruckLineManager::ClosedStation(station)
 
 function TruckLineManager::CheckRoutes()
 {
+	local need_money = false;
 	foreach (route in this._routes) {
-		if (route.CheckVehicles()) return true;
+		if (route.CheckVehicles()) need_money = true;
 	}
-	return false;
+	return need_money;
 }
 
 function TruckLineManager::IndustryClose(industry_id)
