@@ -462,7 +462,7 @@ function AdmiralAI::SendVehicleToSellToDepot()
 	this.sell_vehicles.KeepValue(1);
 	foreach (vehicle, dummy in this.sell_vehicles) {
 		if (AIVehicle.SellVehicle(vehicle)) continue;
-		if (!AIOrder.IsGotoDepotOrder(vehicle, AIOrder.ORDER_CURRENT)) {
+		if (AIVehicle.GetVehicleType(vehicle) != AIVehicle.VT_RAIL && !AIOrder.IsGotoDepotOrder(vehicle, AIOrder.ORDER_CURRENT)) {
 			if (!AIVehicle.SendVehicleToDepot(vehicle)) {
 				AIVehicle.ReverseVehicle(vehicle);
 				AIController.Sleep(50);

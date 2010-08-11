@@ -176,12 +176,25 @@ function TrainLine::GetIndustryTo()
 	return this._ind_to;
 }
 
+function TrainLine::SellVehicle(veh_id)
+{
+	::main_instance.sell_vehicles.AddItem(veh_id, 0);
+	local last_order = AIOrder.GetOrderCount(veh_id) - 1;
+	if (AIOrder.IsGotoDepotOrder(veh_id, last_order)) {
+		AIOrder.SetOrderFlags(veh_id, last_order, AIOrder.AIOF_STOP_IN_DEPOT);
+	}
+	if (AIOrder.IsGotoDepotOrder(veh_id, 1)) {
+		AIOrder.SetOrderFlags(veh_id, 1, AIOrder.AIOF_STOP_IN_DEPOT);
+	}
+	AIOrder.SetOrderFlags(veh_id, 0, AIOrder.AIOF_NO_UNLOAD);
+}
+
 function TrainLine::CloseRoute()
 {
 	if (!this._valid) return;
 	AILog.Warning("Closing down train route");
 	this._UpdateVehicleList();
-	::main_instance.sell_vehicles.AddList(this._vehicle_list);
+	foreach (v, _ in this._vehicle_list) this.SellVehicle(v);
 	::main_instance.SendVehicleToSellToDepot();
 	this._valid = false;
 }
@@ -412,7 +425,7 @@ function TrainLine::CheckVehicles()
 	list.KeepBelowValue(1000);
 
 	if (list.Count() > 0 ) {
-		::main_instance.sell_vehicles.AddList(list);
+		foreach (v, _ in list) this.SellVehicle(v);
 		::main_instance.SendVehicleToSellToDepot();
 		/* Only build new vehicles if we didn't sell any. */
 		return false;
@@ -435,7 +448,7 @@ function TrainLine::CheckVehicles()
 		list.Valuate(AIVehicle.GetCargoLoad, this._cargo);
 		list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 		local v = list.Begin();
-		::main_instance.sell_vehicles.AddItem(v, 0);
+		this.SellVehicle(v);
 		::main_instance.SendVehicleToSellToDepot();
 		/* Don't buy a new train, we just sold one. */
 		return false;
