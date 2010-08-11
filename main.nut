@@ -526,6 +526,32 @@ function AdmiralAI::DoMaintenance()
 	}
 	local removed = [];
 	foreach (idx, pair in this.sell_stations) {
+		local veh_list = AIVehicleList_Station(pair[0]);
+		veh_list.Valuate(AIVehicle.GetVehicleType);
+		switch (pair[1]) {
+			case AIStation.STATION_TRAIN:
+				veh_list.KeepValue(AIVehicle.VT_RAIL);
+				break;
+
+			case AIStation.STATION_TRUCK_STOP:
+				veh_list.KeepValue(AIVehicle.VT_ROAD);
+				break;
+
+			case AIStation.STATION_BUS_STOP:
+				veh_list.KeepValue(AIVehicle.VT_ROAD);
+				break;
+
+			case AIStation.STATION_AIRPORT:
+				veh_list.KeepValue(AIVehicle.VT_AIR);
+				break;
+
+			case AIStation.STATION_DOCK:
+				veh_list.KeepValue(AIVehicle.VT_WATER);
+				break;
+			
+			default: assert(false);
+		}
+		if (!veh_list.IsEmpty()) continue;
 		local tiles = AITileList_StationType(pair[0], pair[1]);
 		foreach (tile, dummy in tiles) {
 			AITile.DemolishTile(tile);
