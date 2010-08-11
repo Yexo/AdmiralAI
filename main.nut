@@ -396,12 +396,13 @@ function AdmiralAI::GetEvents()
 	if (depot != null) return depot;
 	local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),
 	                 AIMap.GetTileIndex(1,0), AIMap.GetTileIndex(-1,0)];
-	local tile_to_try = [roadtile];
+	local tile_to_try = [[roadtile, null]];
 	local tried = AIList();
 	local to_skip = 15;
 	while (tile_to_try.len() > 0) {
 		local cur_tile;
-		cur_tile = tile_to_try[0];
+		cur_tile = tile_to_try[0][0];
+		local last_tile = tile_to_try[0][1];
 		tile_to_try.remove(0);
 		tried.AddItem(cur_tile, 0);
 		if (AIBridge.IsBridgeTile(cur_tile)) {
@@ -415,7 +416,7 @@ function AdmiralAI::GetEvents()
 		foreach (offset in offsets) {
 			if (AIRoad.AreRoadTilesConnected(cur_tile, cur_tile + offset)) {
 				if (AIRoad.IsRoadDepotTile(cur_tile + offset) && AICompany.IsMine(AITile.GetOwner(cur_tile + offset))) return cur_tile + offset;
-				if (!tried.HasItem(cur_tile + offset)) tile_to_try.push(cur_tile + offset);
+				if (!tried.HasItem(cur_tile + offset)) tile_to_try.push([cur_tile + offset, cur_tile]);
 				continue;
 			}
 			if (to_skip > 0) {
@@ -429,6 +430,7 @@ function AdmiralAI::GetEvents()
 			local h2 = AITile.GetMaxHeight(cur_tile + offset);
 			if (h2 > h) AITile.LowerTile(cur_tile + offset, AITile.GetSlope(cur_tile + offset));
 			if (h > h2) AITile.RaiseTile(cur_tile + offset, AITile.GetComplementSlope(AITile.GetSlope(cur_tile + offset)));
+			if (last_tile != null && !AIRoad.AreRoadTilesConnected(cur_tile, last_tile) && !AIRoad.BuildRoad(cur_tile, last_tile)) continue;
 			if (!AIRoad.BuildRoad(cur_tile + offset, cur_tile)) continue;
 			if (!AITile.DemolishTile(cur_tile + offset)) continue;
 			if (AIRoad.BuildRoadDepot(cur_tile + offset, cur_tile)) return cur_tile + offset;
