@@ -4,7 +4,7 @@ AI_VERSION = 24
 FILES = COPYING *.nut rail/*.nut road/*.nut air/*.nut utils/*.nut
 # End of configuration
 
-NAME_VERSION = $(AI_NAME).$(AI_VERSION)
+NAME_VERSION = $(AI_NAME)-$(AI_VERSION)
 TAR_NAME = $(NAME_VERSION).tar
 
 
