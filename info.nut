@@ -24,7 +24,7 @@ class AdmiralAI extends AIInfo {
 	function GetDescription()   { return "An AI that uses several types of transport"; }
 	function GetVersion()       { return 23; }
 	function MinVersionToLoad() { return 21; }
-	function GetDate()          { return "2009-06-17"; }
+	function GetDate()          { return "2010-08-12"; }
 	function CreateInstance()   { return "AdmiralAI"; }
 	function GetAPIVersion()    { return "1.0"; }
 	function GetSettings() {
