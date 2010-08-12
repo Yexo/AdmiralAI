@@ -1,6 +1,6 @@
 # Configuration
 AI_NAME = AdmiralAI
-AI_VERSION = 25
+AI_VERSION = 26
 DIRS = rail road air utils network
 FILES = COPYING *.nut
 # End of configuration
