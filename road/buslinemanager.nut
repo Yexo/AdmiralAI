@@ -325,6 +325,8 @@ function BusLineManager::BuildNewLine()
 				local articulated = station_from.HasArticulatedBusStop() && station_to.HasArticulatedBusStop();
 				local line = BusLine(station_from, station_to, depot_tile, ::main_instance._passenger_cargo_id, false, articulated);
 				this._routes.push(line);
+				::main_instance.BuildHQ(station_to.GetStationID(), 1, 1);
+				::main_instance.BuildHQ(station_from.GetStationID(), 1, 1);
 				return true;
 			}
 		}

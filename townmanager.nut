@@ -191,6 +191,8 @@ function TownManager::BuildAirport(allow_small_airport)
 	if (airport == null && allow_small_airport) airport = this.TryBuildAirport([AIAirport.AT_COMMUTER, AIAirport.AT_SMALL]);
 	if (airport != null) {
 		this._airports.push(airport);
+		local type = AIAirport.GetAirportType(AIStation.GetLocation(airport));
+		::main_instance.BuildHQ(airport, AIAirport.GetAirportWidth(type), AIAirport.GetAirportHeight(type));
 	} else {
 		_airport_failed_date = AIDate.GetCurrentDate();
 	}

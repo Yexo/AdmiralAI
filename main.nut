@@ -234,6 +234,14 @@ class AdmiralAI extends AIController
 	function DoMaintenance();
 
 	/**
+	 * Build the company headquarters if they haven't been build yet.
+	 * @param station_id Station to build the headquarters near.
+	 * @param width The width of the station.
+	 * @param height The height of the station.
+	 */
+	function BuildHQ(station_id, width, height);
+
+	/**
 	 * The mainloop.
 	 * @note This is called by OpenTTD, no need to call from within the AI.
 	 */
@@ -249,6 +257,19 @@ class AdmiralAI extends AIController
 	 */
 	static function CargoValuator(cargo_id);
 };
+
+function AdmiralAI::BuildHQ(station_id, width, height)
+{
+	if (AICompany.GetCompanyHQ(AICompany.COMPANY_SELF) != AIMap.TILE_INVALID) return;
+	
+	local tiles = AITileList();
+	Utils_Tile.AddRectangleSafe(tiles, AIStation.GetLocation(station_id), 4, 4, 3 + width, 3 + height);
+	tiles.Valuate(AIMap.DistanceManhattan, AIStation.GetLocation(station_id));
+	tiles.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	foreach (tile, distance in tiles) {
+		if (AICompany.BuildCompanyHQ(tile)) return;
+	}
+}
 
 function AdmiralAI::GetStationManager(station_id)
 {
