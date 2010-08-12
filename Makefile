@@ -1,7 +1,8 @@
 # Configuration
 AI_NAME = AdmiralAI
 AI_VERSION = 24
-FILES = COPYING *.nut rail/*.nut road/*.nut air/*.nut utils/*.nut
+DIRS = rail road air utils
+FILES = COPYING *.nut
 # End of configuration
 
 NAME_VERSION = $(AI_NAME)-$(AI_VERSION)
@@ -12,6 +13,7 @@ all: bundle
 
 bundle: Makefile $(FILES)
 	@mkdir "$(NAME_VERSION)"
+	@for d in $(DIRS); do mkdir $(NAME_VERSION)/$$d; cp $$d/*.nut $(NAME_VERSION)/$$d; done
 	@cp $(FILES) "$(NAME_VERSION)"
 	@tar -cf "$(TAR_NAME)" "$(NAME_VERSION)"
 	@rm -r "$(NAME_VERSION)"
