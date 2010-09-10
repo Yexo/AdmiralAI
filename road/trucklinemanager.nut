@@ -148,13 +148,13 @@ function TruckLineManager::Save()
 	foreach (ind, managers in this._ind_to_pickup_stations) {
 		local station_ids = [];
 		foreach (manager in managers) {
-			station_ids.push([manager[0].GetStationID(), manager[1]]);
+			station_ids.push([manager[0].Save(), manager[1]]);
 		}
 		data.pickup_stations.rawset(ind, station_ids);
 	}
 
 	foreach (ind, station_manager in this._ind_to_drop_station) {
-		data.drop_stations.rawset(ind, station_manager.GetStationID());
+		data.drop_stations.rawset(ind, station_manager.Save());
 	}
 
 	foreach (route in this._routes) {
@@ -171,8 +171,14 @@ function TruckLineManager::Load(data)
 		foreach (ind, manager_array in data.rawget("pickup_stations")) {
 			local new_man_array = [];
 			foreach (man_info in manager_array) {
-				local man = StationManager(man_info[0]);
-				man.SetCargoDrop(false);
+				local man = StationManager(null);
+				if (::main_instance._save_version < 26) {
+					/* Savegame versions 22..25 only stored the StationID. */
+					man.station_id = man_info[0];
+					man.SetCargoDrop(false);
+				} else {
+					man.Load(man_info[0]);
+				}
 				new_man_array.push([man, man_info[1]]);
 			}
 			this._ind_to_pickup_stations.rawset(ind, new_man_array);
@@ -180,9 +186,15 @@ function TruckLineManager::Load(data)
 	}
 
 	if (data.rawin("drop_stations")) {
-		foreach (ind, station_id in data.rawget("drop_stations")) {
-			local man = StationManager(station_id);
-			man.SetCargoDrop(true);
+		foreach (ind, station_man in data.rawget("drop_stations")) {
+			local man = StationManager(null);
+			if (::main_instance._save_version < 26) {
+				/* Savegame versions 22..25 only stored the StationID. */
+				man.station_id = station_man;
+				man.SetCargoDrop(true);
+			} else {
+				man.Load(station_man);
+			}
 			this._ind_to_drop_station.rawset(ind, man);
 		}
 	}
