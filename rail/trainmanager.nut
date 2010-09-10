@@ -107,7 +107,7 @@ function TrainManager::Save()
 	foreach (ind, managers in this._ind_to_pickup_stations) {
 		local station_ids = [];
 		foreach (manager in managers) {
-			station_ids.push([manager[0].GetStationID(), manager[1]]);
+			station_ids.push([manager[0].Save(), manager[1]]);
 		}
 		data.pickup_stations.rawset(ind, station_ids);
 	}
@@ -115,7 +115,7 @@ function TrainManager::Save()
 	foreach (ind, managers in this._ind_to_drop_stations) {
 		local station_ids = [];
 		foreach (manager in managers) {
-			station_ids.push([manager[0].GetStationID(), manager[1]]);
+			station_ids.push([manager[0].Save(), manager[1]]);
 		}
 		data.drop_stations.rawset(ind, station_ids);
 	}
@@ -136,7 +136,14 @@ function TrainManager::Load(data)
 		foreach (ind, manager_array in data.rawget("pickup_stations")) {
 			local new_man_array = [];
 			foreach (man_info in manager_array) {
-				local man = StationManager(man_info[0]);
+				local man = StationManager(null);
+				if (::main_instance._save_version < 26) {
+					/* Savegame versions 22..25 only stored the StationID. */
+					man.station_id = man_info[0];
+					man.platform_length = 4;
+				} else {
+					man.Load(man_info[0]);
+				}
 				man.SetCargoDrop(false);
 				man.AfterLoadSetRailType(null);
 				new_man_array.push([man, man_info[1]]);
@@ -149,7 +156,14 @@ function TrainManager::Load(data)
 		foreach (ind, manager_array in data.rawget("drop_stations")) {
 			local new_man_array = [];
 			foreach (man_info in manager_array) {
-				local man = StationManager(man_info[0]);
+				local man = StationManager(null);
+				if (::main_instance._save_version < 26) {
+					/* Savegame versions 22..25 only stored the StationID. */
+					man.station_id = man_info[0];
+					man.platform_length = 4;
+				} else {
+					man.Load(man_info[0]);
+				}
 				man.SetCargoDrop(true);
 				man.AfterLoadSetRailType(null);
 				new_man_array.push([man, man_info[1]]);

@@ -189,7 +189,7 @@ function StationManager::Save()
 		rail_type = this._rail_type,
 		platform_length = this._platform_length
 	};
-	return data
+	return data;
 }
 
 function StationManager::Load(data)
