@@ -15,7 +15,7 @@ info.nut:
 	@sed -i 's/revision = .*;/revision = '`hg id -n | cut -d+ -f1`';/' info.nut
 	@sed -i 's/version_major = .*;/version_major = $(AI_VERSION);/' info.nut
 
-bundle: Makefile $(FILES)
+bundle_tar: Makefile $(FILES)
 	@mkdir "$(NAME_VERSION)"
 	@for d in $(DIRS); do mkdir $(NAME_VERSION)/$$d; cp $$d/*.nut $(NAME_VERSION)/$$d; done
 	@cp $(FILES) "$(NAME_VERSION)"
