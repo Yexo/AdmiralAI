@@ -9,7 +9,11 @@ NAME_VERSION = $(AI_NAME)-$(AI_VERSION)
 TAR_NAME = $(NAME_VERSION).tar
 
 
-all: bundle
+all: info.nut
+
+info.nut:
+	@sed -i 's/revision = .*;/revision = '`hg id -n | cut -d+ -f1`';/' info.nut
+	@sed -i 's/version_major = .*;/version_major = $(AI_VERSION);/' info.nut
 
 bundle: Makefile $(FILES)
 	@mkdir "$(NAME_VERSION)"
@@ -17,3 +21,5 @@ bundle: Makefile $(FILES)
 	@cp $(FILES) "$(NAME_VERSION)"
 	@tar -cf "$(TAR_NAME)" "$(NAME_VERSION)"
 	@rm -r "$(NAME_VERSION)"
+
+.PHONY: info.nut

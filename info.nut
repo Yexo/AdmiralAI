@@ -18,11 +18,13 @@
  */
 
 class AdmiralAI extends AIInfo {
+	version_major = 26;
+	revision = 0;
 	function GetAuthor()        { return "Thijs Marinussen"; }
 	function GetName()          { return "AdmiralAI"; }
 	function GetShortName()     { return "ADML"; }
 	function GetDescription()   { return "An AI that uses several types of transport"; }
-	function GetVersion()       { return 26; }
+	function GetVersion()       { return version_major << 24 | revision; }
 	function MinVersionToLoad() { return 21; }
 	function GetDate()          { return "2010-08-12"; }
 	function CreateInstance()   { return "AdmiralAI"; }
