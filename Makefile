@@ -12,7 +12,7 @@ TAR_NAME = $(NAME_VERSION).tar
 all: info.nut
 
 info.nut:
-	@sed -i 's/revision = .*;/revision = '`hg id -n | cut -d+ -f1`';/' version.nut
+	@echo 'revision = '`hg id -n | cut -d+ -f1`';' > version.nut
 	@sed -i 's/version_major = .*;/version_major = $(AI_VERSION);/' info.nut
 
 bundle_tar: Makefile $(FILES)
