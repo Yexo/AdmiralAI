@@ -299,8 +299,6 @@ function TrainManager::RailTypeValuator(rail_type, cargo_id)
 	list.KeepValue(0);
 	list.Valuate(AIEngine.CanPullCargo, cargo_id);
 	list.KeepValue(1);
-	list.Valuate(AIEngine.GetMaxSpeed);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	if (list.Count() == 0) return -1;
 
 	local list2 = AIEngineList(AIVehicle.VT_RAIL);
@@ -313,8 +311,24 @@ function TrainManager::RailTypeValuator(rail_type, cargo_id)
 	list2.Valuate(AIEngine.GetCapacity);
 	list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
 	if (list2.Count() == 0) return -1;
+	local wagon_capacity = AIEngine.GetCapacity(list2.Begin());
 
-	return AIEngine.GetMaxSpeed(list.Begin()) * AIEngine.GetCapacity(list2.Begin());
+	local wagon_id = list2.Begin();
+	local wagon_speed = AIEngine.GetMaxSpeed(wagon_id);
+	if (AIGameSettings.GetValue("vehicle.wagon_speed_limits") || wagon_speed == 0) wagon_speed = 65536;
+	if (AIRail.GetMaxSpeed(rail_type) != 0) wagon_speed = min(wagon_speed, AIRail.GetMaxSpeed(rail_type));
+
+	local max_price = 0;
+	foreach (engine, dummy in list) {
+		max_price = max(max_price, AIEngine.GetPrice(engine));
+	}
+	Utils_Valuator.Valuate(list, TrainLine._SortEngineList, wagon_speed, max_price);
+
+	local engine_id = list.Begin();
+	local engine_value = list.GetValue(engine_id);
+	AILog.Info("RailTypeValuator, railtype: " + rail_type + ", engine_value = " + engine_value + ", wagon_capacity = " + wagon_capacity);
+	AILog.Info("Railtype build cost = " + AIRail.GetBuildCost(rail_type, AIRail.BT_TRACK));
+	return (engine_value * wagon_capacity) << 16 | (0xFFFF - AIRail.GetBuildCost(rail_type, AIRail.BT_TRACK));
 }
 
 function TrainManager::BuildNewRoute()

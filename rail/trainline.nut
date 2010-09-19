@@ -511,8 +511,7 @@ function TrainLine::_UpdateVehicleList()
 function TrainLine::_SortEngineList(engine_id, max_wagon_speed, max_engine_price)
 {
 	local max_speed = min(AIEngine.GetMaxSpeed(engine_id), max_wagon_speed);
-	local factor = max_speed - max_speed * AIEngine.GetPrice(engine_id) / max_engine_price;
-	return max_speed + factor;
+	return max_speed - max_speed * AIEngine.GetPrice(engine_id) / max_engine_price;
 }
 
 function TrainLine::_SortEngineWagonList(engine_id)
