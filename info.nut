@@ -16,7 +16,7 @@
  *
  * Copyright 2008-2010 Thijs Marinussen
  */
-import('version.nut');
+require("version.nut");
 
 class AdmiralAI extends AIInfo {
 	version_major = 26;
