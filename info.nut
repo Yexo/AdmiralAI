@@ -16,10 +16,10 @@
  *
  * Copyright 2008-2010 Thijs Marinussen
  */
+import('version.nut');
 
 class AdmiralAI extends AIInfo {
 	version_major = 26;
-	revision = 0;
 	function GetAuthor()        { return "Thijs Marinussen"; }
 	function GetName()          { return "AdmiralAI"; }
 	function GetShortName()     { return "ADML"; }
