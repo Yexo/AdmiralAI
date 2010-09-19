@@ -538,6 +538,7 @@ function TrainLine::_FindEngineID()
 	}
 	local wagon_speed = AIEngine.GetMaxSpeed(this._wagon_engine_id);
 	if (AIGameSettings.GetValue("vehicle.wagon_speed_limits") || wagon_speed == 0) wagon_speed = 65536;
+	if (AIRail.GetMaxSpeed(this._rail_type) != 0) wagon_speed = min(wagon_speed, AIRail.GetMaxSpeed(this._rail_type));
 
 	this._UpdateVehicleList();
 	local list = AIEngineList(AIVehicle.VT_RAIL);
@@ -558,5 +559,4 @@ function TrainLine::_FindEngineID()
 		this._AutoReplace(this._engine_id, new_engine_id);
 	}
 	this._engine_id = new_engine_id;
-
 }
