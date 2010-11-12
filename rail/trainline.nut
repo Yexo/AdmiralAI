@@ -505,6 +505,14 @@ function TrainLine::_UpdateVehicleList()
 {
 	this._vehicle_list = AIList();
 	this._vehicle_list.AddList(AIVehicleList_Station(this._station_from.GetStationID()));
+	foreach (v, _ in this._vehicle_list) {
+		local last_order = AIOrder.GetOrderCount(v) - 1;
+		if (AIOrder.IsGotoDepotOrder(v, last_order) && (AIOrder.GetOrderFlags(v, last_order) & AIOrder.AIOF_STOP_IN_DEPOT) != 0) {
+			::main_instance.sell_vehicles.AddItem(v, 0);
+		} else if (AIOrder.IsGotoDepotOrder(v, 1) && (AIOrder.GetOrderFlags(v, 1) & AIOrder.AIOF_STOP_IN_DEPOT) != 0) {
+			::main_instance.sell_vehicles.AddItem(v, 0);
+		}
+	}
 	this._vehicle_list.RemoveList(::main_instance.sell_vehicles);
 }
 
