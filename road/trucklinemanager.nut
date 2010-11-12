@@ -174,7 +174,7 @@ function TruckLineManager::Load(data)
 				local man = StationManager(null);
 				if (::main_instance._save_version < 26) {
 					/* Savegame versions 22..25 only stored the StationID. */
-					man.station_id = man_info[0];
+					man._station_id = man_info[0];
 					man.SetCargoDrop(false);
 				} else {
 					man.Load(man_info[0]);
@@ -190,7 +190,7 @@ function TruckLineManager::Load(data)
 			local man = StationManager(null);
 			if (::main_instance._save_version < 26) {
 				/* Savegame versions 22..25 only stored the StationID. */
-				man.station_id = station_man;
+				man._station_id = station_man;
 				man.SetCargoDrop(true);
 			} else {
 				man.Load(station_man);
