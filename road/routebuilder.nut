@@ -218,7 +218,7 @@ function RouteBuilder::DeleteDeadEnd(tile)
 				next_tile = tile + offset;
 			}
 		}
-		if (!AITile.DemolishTile(tile) || next_tile == null || !AIRoad.RemoveRoad(tile, next_tile)) return;
+		if ((!AIRail.IsLevelCrossingTile(tile) && !AITile.DemolishTile(tile)) || next_tile == null || !AIRoad.RemoveRoad(tile, next_tile)) return;
 		tile = next_tile;
 	}
 }
