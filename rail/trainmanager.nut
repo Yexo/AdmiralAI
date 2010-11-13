@@ -139,7 +139,7 @@ function TrainManager::Load(data)
 				local man = StationManager(null);
 				if (::main_instance._save_version < 26) {
 					/* Savegame versions 22..25 only stored the StationID. */
-					man.station_id = man_info[0];
+					man._station_id = man_info[0];
 					man.platform_length = 4;
 					man.SetCargoDrop(false);
 				} else {
@@ -159,7 +159,7 @@ function TrainManager::Load(data)
 				local man = StationManager(null);
 				if (::main_instance._save_version < 26) {
 					/* Savegame versions 22..25 only stored the StationID. */
-					man.station_id = man_info[0];
+					man._station_id = man_info[0];
 					man.platform_length = 4;
 					man.SetCargoDrop(true);
 				} else {
