@@ -375,14 +375,14 @@ function AdmiralAI::GetEvents()
 	while (AIEventController.IsEventWaiting()) {
 		local e = AIEventController.GetNextEvent();
 		switch (e.GetEventType()) {
-			case AIEvent.AI_ET_INDUSTRY_CLOSE:
+			case AIEvent.ET_INDUSTRY_CLOSE:
 				local ind = AIEventIndustryClose.Convert(e).GetIndustryID();
-				this._pending_events.push([AIEvent.AI_ET_INDUSTRY_CLOSE, ind]);
+				this._pending_events.push([AIEvent.ET_INDUSTRY_CLOSE, ind]);
 				break;
 
-			case AIEvent.AI_ET_INDUSTRY_OPEN:
+			case AIEvent.ET_INDUSTRY_OPEN:
 				local ind = AIEventIndustryOpen.Convert(e).GetIndustryID();
-				this._pending_events.push([AIEvent.AI_ET_INDUSTRY_OPEN, ind]);
+				this._pending_events.push([AIEvent.ET_INDUSTRY_OPEN, ind]);
 				break;
 		}
 	}
@@ -465,12 +465,12 @@ function AdmiralAI::HandleEvents()
 {
 	foreach (event_pair in this._pending_events) {
 		switch (event_pair[0]) {
-			case AIEvent.AI_ET_INDUSTRY_CLOSE:
+			case AIEvent.ET_INDUSTRY_CLOSE:
 				this._truck_manager.IndustryClose(event_pair[1]);
 				this._train_manager.IndustryClose(event_pair[1]);
 				break;
 
-			case AIEvent.AI_ET_INDUSTRY_OPEN:
+			case AIEvent.ET_INDUSTRY_OPEN:
 				this._truck_manager.IndustryOpen(event_pair[1]);
 				this._train_manager.IndustryOpen(event_pair[1]);
 				break;
