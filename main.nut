@@ -625,7 +625,8 @@ function AdmiralAI::Start()
 	 * completely failsafe, as the meaning could be changed but not the name,
 	 * but it'll catch some problems. */
 	Utils_General.CheckSettings(["vehicle.max_roadveh", "vehicle.max_aircraft", "vehicle.max_trains", "vehicle.max_ships",
-		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment", "vehicle.wagon_speed_limits"]);
+		"difficulty.vehicle_breakdowns", "construction.build_on_slopes", "station.modified_catchment", "vehicle.wagon_speed_limits",
+		"economy.infrastructure_maintenance"]);
 	/* Call our real constructor here to prevent 'is taking too long to load' errors. */
 	this.Init();
 

@@ -250,6 +250,9 @@ function AircraftManager::BuildNewRoute()
 		}
 	}
 
+	/* Don't build new airports if instrastructure maintenance is on. */
+	if (AIGameSettings.GetValue("economy.infrastructure_maintenance") != 0) return;
+
 	local skip_towns = AIList();
 	/* If there is an exising airport that can use more planes, build a new one
 	 * so more planes can be added to the existing one. */
