@@ -16,7 +16,6 @@
  *
  * Copyright 2008-2010 Thijs Marinussen
  */
-require("version.nut");
 
 class AdmiralAI extends AIInfo {
 	version_major = 26;
@@ -24,7 +23,7 @@ class AdmiralAI extends AIInfo {
 	function GetName()          { return "AdmiralAI"; }
 	function GetShortName()     { return "ADML"; }
 	function GetDescription()   { return "An AI that uses several types of transport"; }
-	function GetVersion()       { return version_major << 24 | revision; }
+	function GetVersion()       { return version_major; }
 	function MinVersionToLoad() { return 21; }
 	function GetDate()          { return "2010-08-12"; }
 	function CreateInstance()   { return "AdmiralAI"; }
