@@ -146,7 +146,7 @@ function RouteBuilder::BuildPath(path, endpoints = [])
 				} else {
 					local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), par.GetTile()) + 1);
 					bridge_list.Valuate(AIBridge.GetMaxSpeed);
-					bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+					bridge_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 					if (!AIBridge.BuildBridge(AIVehicle.VT_ROAD, bridge_list.Begin(), path.GetTile(), par.GetTile())) {
 						if (AIError.GetLastError() == AIError.ERR_NOT_ENOUGH_CASH) return false;
 						if (!RouteBuilder._HandleBridgeBuildError(path.GetTile(), par.GetTile())) break;

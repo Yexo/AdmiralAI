@@ -225,7 +225,7 @@ function AircraftManager::BuildNewRoute()
 	 * somewhat random order. */
 	local town_list = AITownList();
 	Utils_Valuator.Valuate(town_list, this._TownValuator);
-	town_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	town_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	local town_list2 = AIList();
 	town_list2.AddList(town_list);
 
@@ -315,7 +315,7 @@ function AircraftManager::_FindEngineID()
 	/* First find the EngineID for new big planes. */
 	local list = AIEngineList(AIVehicle.VT_AIR);
 	Utils_Valuator.Valuate(list, this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
 		new_engine_id = list.Begin();
@@ -333,7 +333,7 @@ function AircraftManager::_FindEngineID()
 	list.Valuate(AIEngine.GetPlaneType);
 	list.RemoveValue(AIAirport.PT_BIG_PLANE);
 	Utils_Valuator.Valuate(list, this._SortEngineList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	local new_engine_id = null;
 	if (list.Count() != 0) {
 		new_engine_id = list.Begin();

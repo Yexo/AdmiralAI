@@ -86,8 +86,8 @@ class AdmiralAI extends AIController
 		::main_instance <- this;
 		/* Introduce a constant for sorting AILists here, it may be in the api later.
 		 * This needs to be done here, before any instance of it is made. */
-		AIAbstractList.SORT_ASCENDING <- true;
-		AIAbstractList.SORT_DESCENDING <- false;
+		AIList.SORT_ASCENDING <- true;
+		AIList.SORT_DESCENDING <- false;
 
 		this._save_data = null;
 		this._save_version = null;
@@ -265,7 +265,7 @@ function AdmiralAI::BuildHQ(station_id, width, height)
 	local tiles = AITileList();
 	Utils_Tile.AddRectangleSafe(tiles, AIStation.GetLocation(station_id), 4, 4, 3 + width, 3 + height);
 	tiles.Valuate(AIMap.DistanceManhattan, AIStation.GetLocation(station_id));
-	tiles.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	tiles.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 	foreach (tile, distance in tiles) {
 		if (AICompany.BuildCompanyHQ(tile)) return;
 	}
@@ -292,7 +292,7 @@ function AdmiralAI::GetSortedCargoList()
 	if (AIDate.GetCurrentDate() - this._sorted_cargo_list_updated > 200) {
 		this._sorted_cargo_list = AICargoList();
 		this._sorted_cargo_list.Valuate(AdmiralAI.CargoValuator);
-		this._sorted_cargo_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+		this._sorted_cargo_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	}
 	return this._sorted_cargo_list;
 }
@@ -763,7 +763,7 @@ function AdmiralAI::Start()
 				}
 				town_list.KeepAboveValue(0);
 				if (town_list.Count() > 0) {
-					town_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+					town_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 					local town = town_list.Begin();
 					if (AITown.PerformTownAction(town, AITown.TOWN_ACTION_BUILD_STATUE)) {
 						AILog.Info("Build a statue in " + AITown.GetName(town));

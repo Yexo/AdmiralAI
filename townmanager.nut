@@ -219,7 +219,7 @@ function TownManager::ScanMap()
 	depot_list.Valuate(AITile.IsWithinTownInfluence, this._town_id);
 	depot_list.KeepValue(1);
 	depot_list.Valuate(AIMap.DistanceManhattan, AITown.GetLocation(this._town_id));
-	depot_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	depot_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 	foreach (tile, dis in depot_list) {
 		if (!this._depot_tiles.rawin(AIRoad.ROADTYPE_ROAD) && AIRoad.HasRoadType(tile, AIRoad.ROADTYPE_ROAD)) {
 			this._depot_tiles.rawset(AIRoad.ROADTYPE_ROAD, tile);
@@ -289,7 +289,7 @@ function TownManager::TryBuildAirport(types)
 		local list2 = AIList();
 		list2.AddList(tile_list);
 		Utils_Valuator.Valuate(list2, TownManager.AirportLocationValuator, type, AITown.GetLocation(this._town_id));
-		list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+		list2.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 		foreach (t, dummy in list2) {
 			/* With a town rating below AITown.TOWN_RATING_POOR, the town will
 			 * disallow building new stations. */
@@ -438,7 +438,7 @@ function TownManager::GetStation(force_dtrs)
 		drivethrough_list.Valuate(Utils_Town.TileOnTownLayout, this._town_id, true);
 		drivethrough_list.KeepValue(1);
 		drivethrough_list.Valuate(AIMap.DistanceManhattan, town_center);
-		drivethrough_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+		drivethrough_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 		foreach (tile, d in drivethrough_list) {
 			local front_tile = TownManager.CanBuildDrivethroughStop(tile);
 			if (front_tile <= 0) continue;
@@ -481,7 +481,7 @@ function TownManager::GetStation(force_dtrs)
 	list.Valuate(Utils_Town.TileOnTownLayout, this._town_id, false);
 	list.KeepValue(0);
 	list.Valuate(AIMap.DistanceManhattan, town_center);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 	foreach (t, dis in list) {
 		if (AICompany.IsMine(AITile.GetOwner(t))) continue;
 		local offsets = [AIMap.GetTileIndex(0,1), AIMap.GetTileIndex(0, -1),

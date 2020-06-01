@@ -365,7 +365,7 @@ function TrainLine::_UpdateRailType()
 	rail_type_list.Valuate(TrainManager.RailTypeValuator, this._cargo);
 	rail_type_list.RemoveValue(-1);
 	if (rail_type_list.Count() == 0) return -4;
-	rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	rail_type_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	local new_type = rail_type_list.Begin();
 	if (this._rail_type == new_type) return 0;
 	if (!this._station_from.ConvertRailType(new_type)) return -5;
@@ -446,7 +446,7 @@ function TrainLine::CheckVehicles()
 	if (list.Count() >= 4) {
 		AILog.Warning("Detected jam near " + AIStation.GetName(this._station_from.GetStationID()));
 		list.Valuate(AIVehicle.GetCargoLoad, this._cargo);
-		list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+		list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 		local v = list.Begin();
 		this.SellVehicle(v);
 		::main_instance.SendVehicleToSellToDepot();
@@ -537,7 +537,7 @@ function TrainLine::_FindEngineID()
 	list.Valuate(AIEngine.CanRefitCargo, this._cargo);
 	list.KeepValue(1);
 	Utils_Valuator.Valuate(list, this._SortEngineWagonList);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	this._wagon_engine_id = list.Count() == 0 ? null : list.Begin();
 	if (this._wagon_engine_id == null) {
 		this._engine_id = null;
@@ -560,7 +560,7 @@ function TrainLine::_FindEngineID()
 		max_price = max(max_price, AIEngine.GetPrice(engine));
 	}
 	Utils_Valuator.Valuate(list, this._SortEngineList, wagon_speed, max_price);
-	list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	local new_engine_id = list.Begin();
 	if (this._engine_id != null && this._engine_id != new_engine_id) {
 		this._AutoReplace(this._engine_id, new_engine_id);

@@ -94,7 +94,7 @@ function Utils_Array::ArrayToString(array)
 
 function Utils_Array::AIListToString(list)
 {
-	if (typeof(list) != "instance") throw("Utils::AIListToString(): argument has to be an instance of AIAbstractList.");
+	if (typeof(list) != "instance") throw("Utils::AIListToString(): argument has to be an instance of AIList.");
 	local ret = "[";
 	if (!list.IsEmpty()) {
 		local contents = "";

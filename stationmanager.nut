@@ -324,7 +324,7 @@ function StationManager::ConvertRailType(rail_type)
 	if (this._rail_type == rail_type) return true;
 
 	local tiles = AITileList_StationType(this._station_id, AIStation.STATION_TRAIN);
-	tiles.Sort(AIAbstractList.SORT_BY_ITEM, AIAbstractList.SORT_ASCENDING);
+	tiles.Sort(AIList.SORT_BY_ITEM, AIList.SORT_ASCENDING);
 	if (AIRail.GetRailTracks(tiles.Begin()) & AIRail.RAILTRACK_NW_SE) {
 		local tile = tiles.Begin() + AIMap.GetTileIndex(0, -1);
 		if (AIRail.GetRailTracks(tile) & AIRail.RAILTRACK_NW_SE && AICompany.IsMine(AITile.GetOwner(tile))) {

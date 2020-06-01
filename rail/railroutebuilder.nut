@@ -577,7 +577,7 @@ function RailRouteBuilder::BuildPath(path)
 					} else {
 						local bridge_list = AIBridgeList_Length(AIMap.DistanceManhattan(path.GetTile(), prev) + 1);
 						bridge_list.Valuate(AIBridge.GetMaxSpeed);
-						bridge_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+						bridge_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 						if (!AIBridge.BuildBridge(AIVehicle.VT_RAIL, bridge_list.Begin(), prev, path.GetTile())) {
 							AILog.Error("2 " + AIError.GetLastErrorString());
 							return false;

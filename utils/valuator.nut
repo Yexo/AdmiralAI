@@ -36,8 +36,8 @@ class Utils_Valuator
 	static function CallFunction(func, args);
 
 	/**
-	 * Apply a valuator function to every item of an AIAbstractList.
-	 * @param list The AIAbstractList to apply the valuator to.
+	 * Apply a valuator function to every item of an AIList.
+	 * @param list The AIList to apply the valuator to.
 	 * @param valuator The function to apply.
 	 * @param others Extra parameters for the valuator function).
 	 */

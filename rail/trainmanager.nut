@@ -309,7 +309,7 @@ function TrainManager::RailTypeValuator(rail_type, cargo_id)
 	list2.Valuate(AIEngine.CanRefitCargo, cargo_id);
 	list2.KeepValue(1);
 	list2.Valuate(AIEngine.GetCapacity);
-	list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+	list2.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 	if (list2.Count() == 0) return -1;
 	local wagon_capacity = AIEngine.GetCapacity(list2.Begin());
 
@@ -344,7 +344,7 @@ function TrainManager::BuildNewRoute()
 
 		rail_type_list.Valuate(TrainManager.RailTypeValuator, cargo);
 		rail_type_list.RemoveValue(-1);
-		rail_type_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+		rail_type_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 		/* If there is no railtype with a possible train, try another cargo type. */
 		if (rail_type_list.Count() == 0) continue;
 		AIRail.SetCurrentRailType(rail_type_list.Begin());
@@ -365,7 +365,7 @@ function TrainManager::BuildNewRoute()
 			local free_production = last_production - last_transportation;
 			val_list.AddItem(ind_from, free_production + AIBase.RandRange(free_production));
 		}
-		val_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+		val_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 
 		foreach (ind_from, dummy in val_list) {
 			Utils_General.GetMoney(200000);
@@ -373,7 +373,7 @@ function TrainManager::BuildNewRoute()
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(50, min(this._max_distance_new_route, (AICompany.GetBankBalance(AICompany.COMPANY_SELF) - 60000) / 700));
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+			ind_acc_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local station_from = this._GetStationNearIndustry(ind_from, true, cargo, ind_to);
 				if (station_from == null) break;
@@ -580,9 +580,9 @@ function TrainManager::_GetStationNearIndustry(ind, producing, cargo, other_ind)
 	}
 
 	Utils_Valuator.Valuate(tile_list, this.TileValuator1, AIIndustry.GetLocation(other_ind), 4, platform_length);
-	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	tile_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 	Utils_Valuator.Valuate(tile_list2, this.TileValuator2, AIIndustry.GetLocation(other_ind), 4, platform_length);
-	tile_list2.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	tile_list2.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 
 	if (tile_list.Count() == 0 && tile_list2.Count() == 0) AILog.Warning("No tiles");
 	local lists = [];

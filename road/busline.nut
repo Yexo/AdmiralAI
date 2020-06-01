@@ -104,7 +104,7 @@ function BusLine::BuildVehicles(num)
 	if (max_to_build == 0) return true;
 	if (max_to_build < 0) {
 		this._vehicle_list.Valuate(AIVehicle.GetAge);
-		this._vehicle_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+		this._vehicle_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 		this._vehicle_list.KeepTop(abs(max_to_build));
 		foreach (v, dummy in this._vehicle_list) {
 			AIVehicle.SendVehicleToDepot(v);

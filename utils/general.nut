@@ -106,7 +106,7 @@ function Utils_General::GetPassengerCargoID()
 	 * of the largest town. */
 	local town_list = AITownList();
 	town_list.Valuate(AITown.GetPopulation);
-	town_list.Sort(AIAbstractList.SORT_BY_VALUE, false);
+	town_list.Sort(AIList.SORT_BY_VALUE, false);
 	local best_cargo = null;
 	local best_cargo_acceptance = 0;
 	foreach (cargo, dummy in cargo_list) {

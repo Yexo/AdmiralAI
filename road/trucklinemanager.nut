@@ -344,7 +344,7 @@ function TruckLineManager::BuildNewLine()
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(this._min_distance, this._max_distance_new_route);
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+			ind_acc_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 			foreach (ind_to, dummy in ind_acc_list) {
 				local list_from = AITileList();
 				Utils_Tile.AddSquare(list_from, AIIndustry.GetLocation(ind_from), 6);
@@ -437,7 +437,7 @@ function TruckLineManager::_GetStationNearTown(town, dir_tile, cargo)
 	tile_list.Valuate(AITile.GetMaxHeight);
 	tile_list.KeepAboveValue(0);
 	tile_list.Valuate(AIBase.RandItem);
-	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+	tile_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 	foreach (tile, dummy in tile_list) {
 		local can_build = true;
 		foreach (offset in diagoffsets) {
@@ -513,7 +513,7 @@ function TruckLineManager::_GetStationNearIndustry(ind, dir_tile, producing, car
 		tile_list.KeepAboveValue(7);
 	}
 	tile_list.Valuate(AIBase.RandItem);
-	tile_list.Sort(AIAbstractList.SORT_BY_VALUE, producing ? AIAbstractList.SORT_ASCENDING : AIAbstractList.SORT_DESCENDING);
+	tile_list.Sort(AIList.SORT_BY_VALUE, producing ? AIList.SORT_ASCENDING : AIList.SORT_DESCENDING);
 	foreach (tile, dummy in tile_list) {
 		local can_build = true;
 		foreach (offset in diagoffsets) {
@@ -612,7 +612,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			local free_production = last_production - last_transportation;
 			val_list.AddItem(ind_from, free_production + AIBase.RandRange(free_production));
 		}
-		val_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+		val_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 
 		foreach (ind_from, dummy in val_list) {
 			if (ind_from_skipped < this._skip_ind_from && do_skip) {
@@ -622,7 +622,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 			local ind_acc_list = AIIndustryList_CargoAccepting(cargo);
 			ind_acc_list.Valuate(AIIndustry.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 			ind_acc_list.KeepBetweenValue(this._min_distance, this._max_distance_existing_route);
-			ind_acc_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+			ind_acc_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 			foreach (ind_to, dummy in ind_acc_list) {
 				if (ind_to_skipped < this._skip_ind_to && do_skip) {
 					ind_to_skipped++;
@@ -680,7 +680,7 @@ function TruckLineManager::_NewLineExistingRoadGenerator(num_routes_to_check)
 				town_list.KeepAboveValue(min_town_pop);
 				town_list.Valuate(AITown.GetDistanceManhattanToTile, AIIndustry.GetLocation(ind_from));
 				town_list.KeepBetweenValue(50, 400);
-				town_list.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+				town_list.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 				foreach (town, distance in town_list) {
 					local route = RouteFinder.FindRouteBetweenRects(AIIndustry.GetLocation(ind_from), AITown.GetLocation(town), 8);
 					if (route == null) continue;
