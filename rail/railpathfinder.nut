@@ -288,7 +288,7 @@ function RailPF::_Estimate(cur_tile, cur_direction, goal_tiles, self)
 {
 	local dx = abs(AIMap.GetTileX(cur_tile) - AIMap.GetTileX( self._goal_estimate_tile));
 	local dy = abs(AIMap.GetTileY(cur_tile) - AIMap.GetTileY( self._goal_estimate_tile));
-	return 1.1 * min(dx, dy) * (self._cost_diagonal_tile + self._cost_new_rail) * 2 + (max(dx, dy) - min(dx, dy)) * (self._cost_tile + self._cost_new_rail);
+	return 1.2 * (min(dx, dy) * (self._cost_diagonal_tile + self._cost_new_rail) * 2 + (max(dx, dy) - min(dx, dy)) * (self._cost_tile + self._cost_new_rail));
 }
 
 function RailPF::_Neighbours(path, cur_node, self)
