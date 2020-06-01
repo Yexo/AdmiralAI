@@ -181,12 +181,12 @@ function TrainLine::SellVehicle(veh_id)
 	::main_instance.sell_vehicles.AddItem(veh_id, 0);
 	local last_order = AIOrder.GetOrderCount(veh_id) - 1;
 	if (AIOrder.IsGotoDepotOrder(veh_id, last_order)) {
-		AIOrder.SetOrderFlags(veh_id, last_order, AIOrder.AIOF_STOP_IN_DEPOT);
+		AIOrder.SetOrderFlags(veh_id, last_order, AIOrder.OF_STOP_IN_DEPOT);
 	}
 	if (AIOrder.IsGotoDepotOrder(veh_id, 1)) {
-		AIOrder.SetOrderFlags(veh_id, 1, AIOrder.AIOF_STOP_IN_DEPOT);
+		AIOrder.SetOrderFlags(veh_id, 1, AIOrder.OF_STOP_IN_DEPOT);
 	}
-	AIOrder.SetOrderFlags(veh_id, 0, AIOrder.AIOF_NO_UNLOAD);
+	AIOrder.SetOrderFlags(veh_id, 0, AIOrder.OF_NO_UNLOAD);
 }
 
 function TrainLine::CloseRoute()
@@ -254,10 +254,10 @@ function TrainLine::BuildVehicles(num)
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_FULL_LOAD_ANY | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
-			if (this._depot_tiles[1] != null) AIOrder.AppendOrder(v, this._depot_tiles[1], AIOrder.AIOF_SERVICE_IF_NEEDED);
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
-			if (this._depot_tiles[0] != null) AIOrder.AppendOrder(v, this._depot_tiles[0], AIOrder.AIOF_SERVICE_IF_NEEDED);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.OF_FULL_LOAD_ANY | AIOrder.OF_NON_STOP_INTERMEDIATE);
+			if (this._depot_tiles[1] != null) AIOrder.AppendOrder(v, this._depot_tiles[1], AIOrder.OF_SERVICE_IF_NEEDED);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.OF_UNLOAD | AIOrder.OF_NO_LOAD | AIOrder.OF_NON_STOP_INTERMEDIATE);
+			if (this._depot_tiles[0] != null) AIOrder.AppendOrder(v, this._depot_tiles[0], AIOrder.OF_SERVICE_IF_NEEDED);
 		}
 		AIGroup.MoveVehicle(this._group_id, v);
 		AIVehicle.StartStopVehicle(v);
@@ -507,9 +507,9 @@ function TrainLine::_UpdateVehicleList()
 	this._vehicle_list.AddList(AIVehicleList_Station(this._station_from.GetStationID()));
 	foreach (v, _ in this._vehicle_list) {
 		local last_order = AIOrder.GetOrderCount(v) - 1;
-		if (AIOrder.IsGotoDepotOrder(v, last_order) && (AIOrder.GetOrderFlags(v, last_order) & AIOrder.AIOF_STOP_IN_DEPOT) != 0) {
+		if (AIOrder.IsGotoDepotOrder(v, last_order) && (AIOrder.GetOrderFlags(v, last_order) & AIOrder.OF_STOP_IN_DEPOT) != 0) {
 			::main_instance.sell_vehicles.AddItem(v, 0);
-		} else if (AIOrder.IsGotoDepotOrder(v, 1) && (AIOrder.GetOrderFlags(v, 1) & AIOrder.AIOF_STOP_IN_DEPOT) != 0) {
+		} else if (AIOrder.IsGotoDepotOrder(v, 1) && (AIOrder.GetOrderFlags(v, 1) & AIOrder.OF_STOP_IN_DEPOT) != 0) {
 			::main_instance.sell_vehicles.AddItem(v, 0);
 		}
 	}

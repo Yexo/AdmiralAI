@@ -73,7 +73,7 @@ function BusLine::ChangeStationFrom(new_station)
 	if (this._vehicle_list.Count() > 0) {
 		local v = this._vehicle_list.Begin();
 		AIOrder.RemoveOrder(v, 0);
-		AIOrder.InsertOrder(v, 0, AIStation.GetLocation(new_station.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+		AIOrder.InsertOrder(v, 0, AIStation.GetLocation(new_station.GetStationID()), AIOrder.OF_NON_STOP_INTERMEDIATE);
 	}
 	this._station_from = new_station;
 	this._distance = AIMap.DistanceManhattan(AIStation.GetLocation(this._station_from.GetStationID()), AIStation.GetLocation(this._station_to.GetStationID()));
@@ -88,7 +88,7 @@ function BusLine::ChangeStationTo(new_station)
 	if (this._vehicle_list.Count() > 0) {
 		local v = this._vehicle_list.Begin();
 		AIOrder.RemoveOrder(v, 1);
-		AIOrder.InsertOrder(v, 1, AIStation.GetLocation(new_station.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+		AIOrder.InsertOrder(v, 1, AIStation.GetLocation(new_station.GetStationID()), AIOrder.OF_NON_STOP_INTERMEDIATE);
 	}
 	this._station_to = new_station;
 	this._distance = AIMap.DistanceManhattan(AIStation.GetLocation(this._station_from.GetStationID()), AIStation.GetLocation(this._station_to.GetStationID()));
@@ -129,9 +129,9 @@ function BusLine::BuildVehicles(num)
 		if (this._vehicle_list.Count() > 0) {
 			AIOrder.ShareOrders(v, this._vehicle_list.Begin());
 		} else {
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
-			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.AIOF_NON_STOP_INTERMEDIATE);
-			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.AIOF_SERVICE_IF_NEEDED | AIOrder.AIOF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_from.GetStationID()), AIOrder.OF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, AIStation.GetLocation(this._station_to.GetStationID()), AIOrder.OF_NON_STOP_INTERMEDIATE);
+			AIOrder.AppendOrder(v, this._depot_tile, AIOrder.OF_SERVICE_IF_NEEDED | AIOrder.OF_NON_STOP_INTERMEDIATE);
 		}
 		if (i % 2) AIOrder.SkipToOrder(v, 1);
 		this._station_from.AddBusses(1, this._distance, max_speed);

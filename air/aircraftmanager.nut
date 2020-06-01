@@ -181,8 +181,8 @@ function AircraftManager::BuildPlanes(station_a, station_b)
 	/* Add the vehicle to the right group. */
 	AIGroup.MoveVehicle(small_airport ? this._small_engine_group : this._big_engine_group, v);
 	/* Add the orders to the vehicle. */
-	AIOrder.AppendOrder(v, AIStation.GetLocation(station_a), AIOrder.AIOF_NONE);
-	AIOrder.AppendOrder(v, AIStation.GetLocation(station_b), AIOrder.AIOF_NONE);
+	AIOrder.AppendOrder(v, AIStation.GetLocation(station_a), AIOrder.OF_NONE);
+	AIOrder.AppendOrder(v, AIStation.GetLocation(station_b), AIOrder.OF_NONE);
 	AIVehicle.StartStopVehicle(v);
 
 	/* Clone the first plane, but build it at the second airport. */
