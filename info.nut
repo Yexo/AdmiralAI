@@ -27,7 +27,7 @@ class AdmiralAI extends AIInfo {
 	function MinVersionToLoad() { return 21; }
 	function GetDate()          { return "2010-08-12"; }
 	function CreateInstance()   { return "AdmiralAI"; }
-	function GetAPIVersion()    { return "1.0"; }
+	function GetAPIVersion()    { return "1.10"; }
 	function GetSettings() {
 		AddSetting({name = "use_busses", description = "Enable busses", easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = CONFIG_BOOLEAN});
 		AddSetting({name = "use_trucks", description = "Enable trucks", easy_value = 1, medium_value = 1, hard_value = 1, custom_value = 1, flags = CONFIG_BOOLEAN});
