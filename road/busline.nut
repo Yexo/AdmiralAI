@@ -217,6 +217,7 @@ function BusLine::CheckVehicles()
 		}
 		local rating = min(AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo),
 		                   AIStation.GetCargoRating(this._station_to.GetStationID(), this._cargo));
+		if (rating == -1) rating = 69;
 		local target_rating = 60;
 		if (AITown.HasStatue(AIStation.GetNearestTown(this._station_from.GetStationID()))) target_rating += 10;
 		local veh_speed = AIEngine.GetMaxSpeed(this._engine_id);

@@ -166,9 +166,10 @@ function TownManager::GetExistingAirport(allow_small_airport)
 		if (Utils_Airport.IsSmallAirport(airport) && !allow_small_airport) continue;
 		/* Only return an airport if there are enough waiting passengers, ie the current
 		 * number of planes can't handle it. */
+		local rating = AIStation.GetCargoRating(airport, ::main_instance._passenger_cargo_id);
 		if (AIStation.GetCargoWaiting(airport, ::main_instance._passenger_cargo_id) > 500 ||
 				(AIStation.GetCargoWaiting(airport, ::main_instance._passenger_cargo_id) > 250 && Utils_Airport.IsSmallAirport(airport)) ||
-				AIStation.GetCargoRating(airport, ::main_instance._passenger_cargo_id) < 50) {
+				rating < 50) {
 			return airport;
 		}
 	}

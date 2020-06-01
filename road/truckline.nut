@@ -245,7 +245,9 @@ function TruckLine::CheckVehicles()
 		if (AITown.HasStatue(AIStation.GetNearestTown(this._station_from.GetStationID()))) target_rating += 10;
 		local veh_speed = AIEngine.GetMaxSpeed(this._engine_id);
 		if (veh_speed > 85) target_rating += min(17, (veh_speed - 85) / 4);
-		if (AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo) < target_rating && num_young_vehicles == 0 && num_new == 0) num_new = 1;
+		local rating = AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo);
+		if (rating == -1) rating = 69;
+		if (rating < target_rating && num_young_vehicles == 0 && num_new == 0) num_new = 1;
 		if (this._vehicle_list.Count() == 0) num_new = max(num_new, 2);
 
 		list = AIList();

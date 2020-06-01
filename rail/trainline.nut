@@ -470,7 +470,8 @@ function TrainLine::CheckVehicles()
 		if (veh_speed > 85) target_rating += min(17, (veh_speed - 85) / 4);
 
 		local cargo_per_train = this._vehicle_list.Count() > 0 ? AIVehicle.GetCapacity(this._vehicle_list.Begin(), this._cargo) : -1;
-		if (AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo) < target_rating || cargo_per_train == -1 || cargo_waiting > 1.5 * cargo_per_train) {
+		local current_rating = AIStation.GetCargoRating(this._station_from.GetStationID(), this._cargo)
+		if ((current_rating != -1 && current_rating < target_rating) || cargo_per_train == -1 || cargo_waiting > 1.5 * cargo_per_train) {
 			return !this.BuildVehicles(1);
 		}
 	}
