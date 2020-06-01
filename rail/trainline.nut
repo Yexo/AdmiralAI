@@ -63,7 +63,7 @@ class TrainLine
 		this._valid = true;
 		this._rail_type = rail_type;
 		if (!loaded) {
-			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL);
+			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL, AIGroup.GROUP_INVALID);
 			this._RenameGroup();
 			this.BuildVehicles(1);
 		}

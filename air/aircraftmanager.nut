@@ -97,9 +97,9 @@ class AircraftManager
 function AircraftManager::AfterLoad()
 {
 	/* (Re)create the groups so we can seperatly autoreplace big and small planes. */
-	this._small_engine_group = AIGroup.CreateGroup(AIVehicle.VT_AIR);
+	this._small_engine_group = AIGroup.CreateGroup(AIVehicle.VT_AIR, AIGroup.GROUP_INVALID);
 	AIGroup.SetName(this._small_engine_group, "Small planes");
-	this._big_engine_group = AIGroup.CreateGroup(AIVehicle.VT_AIR);
+	this._big_engine_group = AIGroup.CreateGroup(AIVehicle.VT_AIR, AIGroup.GROUP_INVALID);
 	AIGroup.SetName(this._big_engine_group, "Big planes");
 
 	/* Add all existing airports to the relevant townmanager. */

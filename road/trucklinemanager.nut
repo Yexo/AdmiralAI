@@ -238,7 +238,7 @@ function TruckLineManager::Load(data)
 function TruckLineManager::AfterLoad()
 {
 	foreach (route in this._routes) {
-		route._group_id = AIGroup.CreateGroup(AIVehicle.VT_ROAD);
+		route._group_id = AIGroup.CreateGroup(AIVehicle.VT_ROAD, AIGroup.GROUP_INVALID);
 		route.RenameGroup();
 		foreach (v, dummy in route._vehicle_list) {
 			AIGroup.MoveVehicle(route._group_id, v);

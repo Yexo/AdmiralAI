@@ -220,7 +220,7 @@ function TrainManager::Load(data)
 function TrainManager::AfterLoad()
 {
 	foreach (route in this._routes) {
-		route._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL);
+		route._group_id = AIGroup.CreateGroup(AIVehicle.VT_RAIL, AIGroup.GROUP_INVALID);
 		route._RenameGroup();
 	}
 }

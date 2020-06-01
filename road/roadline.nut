@@ -54,7 +54,7 @@ class RoadLine
 		this._support_articulated = support_articulated;
 		this._road_type = road_type == null ? AIRoad.GetCurrentRoadType() : road_type;
 		if (create_group) {
-			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_ROAD);
+			this._group_id = AIGroup.CreateGroup(AIVehicle.VT_ROAD, AIGroup.GROUP_INVALID);
 			this.RenameGroup();
 		}
 		this._distance = AIMap.DistanceManhattan(AIStation.GetLocation(station_from.GetStationID()), AIStation.GetLocation(station_to.GetStationID()));
